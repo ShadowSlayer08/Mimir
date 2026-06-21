@@ -42,7 +42,7 @@ def main():
     rc = subprocess.run(cmd).returncode
     if rc == 0:
         print(f"\n[+] Built {_artifact()}")
-        print("    PyInstaller does not cross-compile — build on each target OS "
+        print("    PyInstaller does not cross-compile - build on each target OS "
               "(or via a CI matrix).")
     return rc
 

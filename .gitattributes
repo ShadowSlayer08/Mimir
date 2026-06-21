@@ -1,0 +1,11 @@
+# Normalize all text to LF in the repo and working tree (this is a cross-platform
+# Python project that forces UTF-8 stdio; LF everywhere avoids CRLF churn/warnings
+# on Windows checkouts).
+* text=auto eol=lf
+
+# Binary assets — never normalize.
+*.png binary
+*.jpg binary
+*.ico binary
+*.icns binary
+*.whl binary
