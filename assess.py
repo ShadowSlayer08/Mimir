@@ -500,6 +500,13 @@ def build_parser():
                     help="asset business criticality for composite risk scoring (default: 0.5)")
     ap.add_argument("--kev", dest="kev_file",
                     help="file of CISA-KEV CVE ids (one per line) — forces those CVEs to critical")
+    ap.add_argument("--enrich", action="store_true",
+                    help="enrich risk scoring with live CISA-KEV + FIRST-EPSS feeds "
+                         "(cached under the app data dir; egress to public feeds only)")
+    ap.add_argument("--offline", action="store_true",
+                    help="with --enrich, never fetch — use cached feeds only")
+    ap.add_argument("--assets", dest="assets_file",
+                    help="YAML/JSON map of host -> {exposure, business} for per-asset risk scoring")
     ap.add_argument("--ports", help="nmap -p port spec (default: nmap default ports)")
     ap.add_argument("--timing", default=None, help="override the mode's nmap -T timing template")
     ap.add_argument("--Pn", dest="pn", action="store_true",
@@ -576,6 +583,50 @@ def derive_targets(args):
     if not target:
         raise SystemExit(C.red("[error] no target given."))
     return [(target, [target])], None, None, None, []
+
+
+def _num_or_none(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _load_assets(path):
+    """Per-asset risk map: host -> {exposure: float, business: float}.
+
+    YAML or JSON. Values may be level names (exposure: internet/internal/isolated;
+    business: low/medium/high/critical) or raw 0-1 floats. Returns {} on any error
+    so scoring falls back to the global --exposure/--business.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = fh.read()
+        if path.lower().endswith((".yaml", ".yml")):
+            import yaml
+            data = yaml.safe_load(raw) or {}
+        else:
+            data = json.loads(raw)
+    except Exception as e:
+        print(C.ylw(f"  [assets] could not load {path}: {e}"))
+        return {}
+    if isinstance(data, dict) and isinstance(data.get("assets"), dict):
+        data = data["assets"]
+    out = {}
+    for host, cfg in (data or {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        entry = {}
+        if cfg.get("exposure") is not None:
+            entry["exposure"] = EXPOSURE_LEVELS.get(str(cfg["exposure"]).lower(),
+                                                    _num_or_none(cfg["exposure"]))
+        if cfg.get("business") is not None:
+            entry["business"] = BUSINESS_LEVELS.get(str(cfg["business"]).lower(),
+                                                    _num_or_none(cfg["business"]))
+        entry = {k: v for k, v in entry.items() if v is not None}
+        if entry:
+            out[host] = entry
+    return out
 
 
 def build_engagement_json(report, mods, paths, scan_meta):
@@ -713,12 +764,24 @@ def main(argv=None):
     banner("Stage 2 — Analysis (inventory + findings)")
     expo = EXPOSURE_LEVELS.get(args.exposure) if args.exposure else None
     biz = BUSINESS_LEVELS.get(args.business) if args.business else None
-    kev = None
+    kev = set()
     if args.kev_file and os.path.isfile(args.kev_file):
         with open(args.kev_file, "r", encoding="utf-8", errors="ignore") as fh:
             import re as _re
-            kev = _re.findall(r"CVE-\d{4}-\d+", fh.read(), _re.I)
-    findings = analyze(hosts, exposure=expo, business=biz, kev_cves=kev) + evidence
+            kev = {c.upper() for c in _re.findall(r"CVE-\d{4}-\d+", fh.read(), _re.I)}
+    epss_map = None
+    if args.enrich:
+        try:
+            from enrich import enrich as _enrich
+            kev_live, epss_map = _enrich(offline=args.offline)
+            kev |= kev_live
+            print(C.dim(f"  enrichment: {len(kev_live)} KEV + {len(epss_map)} EPSS scores "
+                        f"({'cache-only' if args.offline else 'live feeds'})"))
+        except Exception as e:                                          # pragma: no cover
+            print(C.ylw(f"  enrichment unavailable: {e}"))
+    asset_cfg = _load_assets(args.assets_file) if args.assets_file else None
+    findings = analyze(hosts, exposure=expo, business=biz, kev_cves=(kev or None),
+                       epss_map=epss_map, asset_cfg=asset_cfg) + evidence
     findings.sort(key=lambda f: SEV_RANK.get(f["severity"], 9))
     report = build_report(hosts, meta, findings)
     print_inventory(report)
@@ -839,9 +902,23 @@ def main(argv=None):
             print(C.grn(f"[+] Container runner script written: {out} "
                         f"(operator runs each {args.runtime} command in scope)"))
     if args.ledger_db:
-        from ledger import record_run
+        from ledger import record_run, diff
         rid = record_run(args.ledger_db, report, mods, paths, scan_meta)
         print(C.grn(f"[+] Recorded run #{rid} in ledger {args.ledger_db}"))
+        d = diff(args.ledger_db)
+        if d and (d["new"] or d["fixed"] or d["grade_changes"]):
+            print(C.bold("  Changes since previous run: ")
+                  + C.red(f"{len(d['new'])} new") + ", "
+                  + C.grn(f"{len(d['fixed'])} fixed") + ", "
+                  + f"{len(d['still_open'])} still-open")
+            for f in d["new"][:8]:
+                tgt = f"{f['host']}:{f['port']}" if f['port'] else f['host']
+                print(C.red(f"    + [{f['severity']}] {tgt}  {f['title']}"))
+            for f in d["fixed"][:8]:
+                tgt = f"{f['host']}:{f['port']}" if f['port'] else f['host']
+                print(C.grn(f"    - fixed   {tgt}  {f['title']}"))
+            for g in d["grade_changes"]:
+                print(f"    ~ grade {g['label']}: {g['old']} -> {g['new']}")
 
     return 0
 

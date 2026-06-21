@@ -604,12 +604,16 @@ def _num(x):
     except Exception: return 0.0
 
 
-def analyze(hosts, exposure=None, business=None, kev_cves=None):
+def analyze(hosts, exposure=None, business=None, kev_cves=None, epss_map=None, asset_cfg=None):
     findings = []
     risk_cfg = get_risk_config()
     kev_set = {c.upper() for c in (kev_cves or ())}
     for h in hosts:
         label = (h["hostnames"][0] if h["hostnames"] else h["ip"]) or h.get("ipv6") or "?"
+        # per-asset exposure/business override (falls back to the global values)
+        _ov = (asset_cfg.get(label) or asset_cfg.get(h.get("ip")) or {}) if asset_cfg else {}
+        hx = _ov.get("exposure", exposure)
+        hb = _ov.get("business", business)
         for p in h["ports"]:
             port, svc = p["port"], p["service"]
             sname = svc.get("name", "")
@@ -631,7 +635,11 @@ def analyze(hosts, exposure=None, business=None, kev_cves=None):
                     expl = [c["id"] for c in cves if c["exploit"]]
                     cve_ids = [c["id"] for c in cves]
                     is_kev = any(cid.upper() in kev_set for cid in cve_ids)
-                    score, sev = composite_risk(maxc, exposure=exposure, business=business,
+                    epss = None
+                    if epss_map:
+                        _e = [epss_map[cid.upper()] for cid in cve_ids if cid.upper() in epss_map]
+                        epss = max(_e) if _e else None
+                    score, sev = composite_risk(maxc, epss=epss, exposure=hx, business=hb,
                                                 kev=is_kev, public_exploit=bool(expl), cfg=risk_cfg)
                     top = sorted(cves, key=lambda c: (-_num(c["cvss"]), c["id"]))[:8]
                     detail = "; ".join(f"{c['id']} ({c['cvss']}{'*EXPLOIT' if c['exploit'] else ''})"
