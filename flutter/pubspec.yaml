@@ -1,0 +1,30 @@
+name: redengine_viewer
+description: >-
+  Read-only desktop viewer for the redengine pentest orchestration engine.
+  Displays an exported engagement (hosts, findings, ATT&CK attack paths,
+  kill-chain) and copies STAGED operator commands to the clipboard.
+  It executes nothing: no scans, no exploits. Methodology + staging only.
+publish_to: "none"
+version: 0.1.0
+
+# Floor is Flutter 3.27 / Dart 3.6: the UI uses the Material-3 CardThemeData and
+# Color.withValues APIs. On an older SDK, replace withValues(alpha: x) with
+# withOpacity(x) and CardThemeData with CardTheme.
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Open-file dialog on Windows/Linux/macOS. Clipboard is in flutter/services
+  # (core, no dependency). No process/exec package is included by design:
+  # the app must never be able to launch nmap or any tooling.
+  file_picker: ^8.0.0
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

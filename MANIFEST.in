@@ -1,0 +1,9 @@
+include README.md
+include requirements.txt
+include docs/*.md
+include docs/modules/*.md
+recursive-include docs *.md
+global-exclude __pycache__/*
+global-exclude *.py[cod]
+prune exploits
+prune tests

@@ -1,0 +1,16 @@
+Nmap scan report for legacy.example.lab (192.0.2.10)
+Host is up.
+PORT    STATE SERVICE
+443/tcp open  https
+| ssl-enum-ciphers:
+|   SSLv3:
+|     ciphers:
+|       TLS_RSA_WITH_RC4_128_SHA (rsa 2048) - C
+|       TLS_RSA_WITH_3DES_EDE_CBC_SHA (rsa 2048) - D
+|     warnings:
+|       64-bit block cipher 3DES vulnerable to SWEET32 attack
+|       Broken cipher RC4 is deprecated by RFC 7465
+|   TLSv1.2:
+|     ciphers:
+|       TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 (ecdh_x25519) - A
+|_  least strength: C

@@ -1,0 +1,85 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redengine"
+version = "5.0.0"
+description = "Knowledge-driven pentest ORCHESTRATION engine (methodology + staging only) for authorized / lab / CTF use."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary - authorized engagement use only" }
+authors = [{ name = "RedEngine" }]
+keywords = ["pentest", "nmap", "attack-paths", "mitre-attack", "orchestration", "methodology"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Topic :: Security",
+    "Intended Audience :: Information Technology",
+]
+
+# Core runtime: deliberately minimal. The headless / CLI engine runs on these
+# four alone. Qt and the operator toolkit are optional extras below.
+dependencies = [
+    "PyYAML>=6.0",
+    "requests>=2.28",
+    "colorama>=0.4",
+    "cryptography>=41",
+]
+
+[project.optional-dependencies]
+# GUI thick client. Required by the redengine console script: pip install redengine[gui]
+gui = ["PySide6>=6.5"]
+# Operator red-team toolkit (staging/handoff helpers; the engine never auto-runs them).
+redteam = ["impacket", "pymetasploit3", "python-nmap", "beautifulsoup4"]
+# Standalone native-binary build toolchain.
+build = ["pyinstaller"]
+# Nicer CLI rendering (optional; engine degrades to plain colorama without it).
+rich = ["rich>=13"]
+# Convenience: everything an operator workstation wants.
+all = ["PySide6>=6.5", "impacket", "pymetasploit3", "python-nmap", "beautifulsoup4", "rich>=13"]
+
+[project.scripts]
+redengine = "red_engine:main"
+redengine-cli = "assess:main"
+redengine-scan = "nmap_analyzer:main"
+
+# Flat layout: enumerate every shipped top-level module explicitly, plus the
+# modules/ code package and the docs/ knowledge base as importable DATA
+# packages. No automatic discovery. exploits/, build_*, run_tests, conftest and
+# tests/ are intentionally omitted from the distribution.
+[tool.setuptools]
+py-modules = [
+    "red_engine",
+    "attack_dashboard",
+    "pentest_console",
+    "assess",
+    "nmap_analyzer",
+    "attack_path_engine",
+    "knowledge_loader",
+    "profiles",
+    "evidence",
+    "reporting",
+    "ledger",
+    "killchain",
+    "device_profile",
+    "abuse",
+    "containers",
+    "config",
+    "findings",
+    "ciphers",
+    "ciphers_v4",
+    "validate_kb",
+]
+# 'docs' / 'docs.modules' are data-only packages carrying the Markdown KB so it
+# ships in the wheel and is addressable via importlib.resources.files('docs').
+# Requires docs/__init__.py and docs/modules/__init__.py marker files.
+packages = ["modules", "docs", "docs.modules"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"docs" = ["*.md"]
+"docs.modules" = ["*.md"]

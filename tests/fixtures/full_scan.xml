@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<nmaprun scanner="nmap" version="7.94" args="nmap -sV -O --script vulners,vuln,default -oX" startstr="Wed Jun 11 2026">
+<host>
+<status state="up"/>
+<address addr="10.10.10.5" addrtype="ipv4"/>
+<address addr="00:0c:29:ab:cd:ef" addrtype="mac" vendor="VMware"/>
+<hostnames><hostname name="dc01.corp.lab"/></hostnames>
+<ports>
+<port protocol="tcp" portid="22"><state state="open" reason="syn-ack"/>
+  <service name="ssh" product="OpenSSH" version="7.4" extrainfo="protocol 2.0"><cpe>cpe:/a:openbsd:openssh:7.4</cpe></service>
+  <script id="vulners" output="cpe:/a:openbsd:openssh:7.4:">
+    <table key="cpe:/a:openbsd:openssh:7.4">
+      <table><elem key="type">cve</elem><elem key="id">CVE-2018-15473</elem><elem key="cvss">5.3</elem><elem key="is_exploit">true</elem></table>
+      <table><elem key="type">cve</elem><elem key="id">CVE-2016-10009</elem><elem key="cvss">7.5</elem><elem key="is_exploit">true</elem></table>
+      <table><elem key="type">cve</elem><elem key="id">CVE-2016-10012</elem><elem key="cvss">7.2</elem><elem key="is_exploit">false</elem></table>
+    </table>
+  </script>
+  <script id="ssh-hostkey" output="2048 SHA256:abcd... (RSA)"/>
+</port>
+<port protocol="tcp" portid="23"><state state="open" reason="syn-ack"/>
+  <service name="telnet" product="Linux telnetd"/></port>
+<port protocol="tcp" portid="139"><state state="open"/><service name="netbios-ssn" product="Samba smbd"/></port>
+<port protocol="tcp" portid="445"><state state="open"/><service name="microsoft-ds" product="Samba smbd 3.X - 4.X"/></port>
+<port protocol="tcp" portid="3389"><state state="open"/><service name="ms-wbt-server" product="Microsoft Terminal Services"/></port>
+<port protocol="tcp" portid="6379"><state state="open"/><service name="redis" product="Redis key-value store" version="2.8.17"/></port>
+</ports>
+<hostscript>
+  <script id="smb-vuln-ms17-010" output="VULNERABLE: Remote Code Execution vulnerability in Microsoft SMBv1 servers (ms17-010)">
+    <table key="CVE-2017-0143"><elem key="title">Remote Code Execution vulnerability in Microsoft SMBv1 servers (ms17-010)</elem><elem key="state">VULNERABLE</elem>
+      <table key="ids"><table><elem key="type">cve</elem><elem key="value">CVE-2017-0143</elem></table></table></table>
+  </script>
+</hostscript>
+<os><osmatch name="Linux 3.2 - 4.9" accuracy="96"><osclass type="general purpose" osfamily="Linux"/></osmatch></os>
+<distance value="2"/>
+</host>
+<host>
+<status state="up"/>
+<address addr="10.10.10.20" addrtype="ipv4"/>
+<hostnames><hostname name="web.corp.lab"/></hostnames>
+<ports>
+<port protocol="tcp" portid="80"><state state="open"/><service name="http" product="Apache httpd" version="2.4.7"/>
+  <script id="http-title" output="Welcome"/></port>
+<port protocol="tcp" portid="443"><state state="open"/><service name="https" product="Apache httpd" tunnel="ssl"/>
+  <script id="ssl-enum-ciphers">
+    <table key="TLSv1.0"><table key="ciphers">
+      <table><elem key="name">TLS_RSA_WITH_3DES_EDE_CBC_SHA</elem><elem key="strength">D</elem>
+        <table key="warnings"><elem>64-bit block cipher 3DES vulnerable to SWEET32 attack</elem></table></table></table></table>
+    <elem key="least strength">D</elem>
+  </script>
+  <script id="ssl-cert"><table key="subject"><elem key="commonName">web.corp.lab</elem></table>
+    <table key="issuer"><elem key="commonName">web.corp.lab</elem></table>
+    <table key="pubkey"><elem key="type">rsa</elem><elem key="bits">1024</elem></table>
+    <table key="validity"><elem key="notBefore">2019-01-01T00:00:00</elem><elem key="notAfter">2021-01-01T00:00:00</elem></table>
+    <elem key="sig_algo">sha1WithRSAEncryption</elem></script>
+  <script id="ssl-heartbleed" output="VULNERABLE: The Heartbleed Bug">
+    <table key="CVE-2014-0160"><elem key="title">The Heartbleed Bug</elem><elem key="state">VULNERABLE</elem></table></script></port>
+<port protocol="tcp" portid="21"><state state="open"/><service name="ftp" product="vsftpd 2.3.4"/>
+  <script id="ftp-anon" output="Anonymous FTP login allowed (FTP code 230)"/></port>
+<port protocol="tcp" portid="3306"><state state="open"/><service name="mysql" product="MySQL" version="5.5.62"/></port>
+</ports>
+<os><osmatch name="Linux 2.6.32" accuracy="92"><osclass type="general purpose" osfamily="Linux"/></osmatch></os>
+</host>
+</nmaprun>

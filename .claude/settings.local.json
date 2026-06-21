@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 nmap_analyzer.py tests/fixtures/full_scan.xml --no-gui --json /tmp/r.json)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(awk 'NR>=1040 && NR<=1200' nmap_analyzer.py)",
+      "Bash(python3 -c \"import pytest; print\\('pytest', pytest.__version__\\)\")",
+      "Bash(pip install *)",
+      "Bash(python3 -m pip install pytest -q)",
+      "Bash(python3 -m ensurepip --user)",
+      "Bash(apt-cache policy *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python3 tests/test_assess.py)",
+      "Bash(echo \"=== exit: $? ===\")",
+      "Bash(python3 -m pytest tests/test_assess.py -q)",
+      "Bash(python3 assess.py --scope 34.246.169.176)",
+      "Bash(python3 assess.py 10.0.0.1 --scope /no/such/scope.txt --yes)",
+      "Bash(python3 -)",
+      "Bash(python3 assess.py --help)",
+      "Bash(python3 -c \"import nmap_analyzer; print\\('OK'\\)\")",
+      "Bash(python3 -c \"import assess; print\\('OK'\\)\")",
+      "Bash(python3 -m modules tests/fixtures/full_scan.xml)",
+      "Bash(python3 -m pytest)",
+      "Bash(pip list *)",
+      "Bash(python3 -m pip install pytest lxml pyside6 jinja2 pyyaml)",
+      "Bash(python3 -c \"import lxml; import yaml; print\\('lxml, yaml OK'\\)\")",
+      "Bash(python3 nmap_analyzer.py tests/fixtures/full_scan.xml --no-gui)",
+      "Bash(apt list *)",
+      "Bash(python3 -m ensurepip)",
+      "Bash(apt-get update *)",
+      "Bash(apt-get install *)",
+      "Bash(python3 attack_path_engine.py)",
+      "Bash(python3 knowledge_loader.py)",
+      "Bash(python3 attack_path_engine.py tests/fixtures/full_scan.xml)",
+      "Bash(python3 modules/__main__.py tests/fixtures/full_scan.xml)",
+      "Bash(python3 -c \"import sys;sys.path.insert\\(0,'.'\\);from nmap_analyzer import *; print\\('OK'\\)\")",
+      "Bash(python3 pentest_console.py tests/fixtures/full_scan.xml --selftest)",
+      "Bash(python3 -c \"from modules import dispatch; print\\('OK'\\)\")",
+      "Bash(python3 assess.py --from-xml tests/fixtures/full_scan.xml --yes)"
+    ]
+  }
+}

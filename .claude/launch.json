@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "attack-dashboard (front door)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["attack_dashboard.py"],
+      "port": null
+    },
+    {
+      "name": "pentest-console (PySide6 GUI)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["pentest_console.py", "tests/fixtures/full_scan.xml"],
+      "port": null
+    },
+    {
+      "name": "nmap-analyzer (Tkinter GUI)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["nmap_analyzer.py", "tests/fixtures/full_scan.xml"],
+      "port": null
+    },
+    {
+      "name": "assess (CLI pipeline)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["assess.py", "--from-xml", "tests/fixtures/full_scan.xml", "--yes"],
+      "port": null
+    }
+  ]
+}

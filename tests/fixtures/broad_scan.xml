@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun scanner="nmap" args="nmap -sV -O -sU -sS broad" start="1700000000" version="7.94" startstr="Fri Jun 13 00:00:00 2025">
+  <host>
+    <status state="up" reason="echo-reply"/>
+    <address addr="10.10.10.50" addrtype="ipv4"/>
+    <hostname name="infra01.corp.lab" type="user"/>
+    <os><osmatch name="Linux 5.x" accuracy="95"><osclass type="general purpose" osfamily="Linux"/></osmatch></os>
+    <ports>
+      <port protocol="tcp" portid="21"><state state="open"/><service name="ftp" product="vsftpd" version="2.3.4"/></port>
+      <port protocol="tcp" portid="22"><state state="open"/><service name="ssh" product="OpenSSH" version="7.2p2"/></port>
+      <port protocol="tcp" portid="23"><state state="open"/><service name="telnet" product="Linux telnetd"/></port>
+      <port protocol="tcp" portid="25"><state state="open"/><service name="smtp" product="Postfix smtpd"/></port>
+      <port protocol="tcp" portid="79"><state state="open"/><service name="finger"/></port>
+      <port protocol="udp" portid="53"><state state="open"/><service name="domain" product="ISC BIND" version="9.11"/></port>
+      <port protocol="udp" portid="69"><state state="open"/><service name="tftp"/></port>
+      <port protocol="udp" portid="123"><state state="open"/><service name="ntp" product="ntpd"/></port>
+      <port protocol="udp" portid="161"><state state="open"/><service name="snmp" product="net-snmp" version="1"/></port>
+      <port protocol="tcp" portid="111"><state state="open"/><service name="rpcbind"/></port>
+      <port protocol="tcp" portid="2049"><state state="open"/><service name="nfs"/></port>
+      <port protocol="tcp" portid="873"><state state="open"/><service name="rsync"/></port>
+      <port protocol="tcp" portid="3389"><state state="open"/><service name="ms-wbt-server" product="Microsoft Terminal Services"/></port>
+      <port protocol="tcp" portid="5900"><state state="open"/><service name="vnc" product="RealVNC"/></port>
+      <port protocol="tcp" portid="5985"><state state="open"/><service name="winrm" product="Microsoft HTTPAPI"/></port>
+      <port protocol="tcp" portid="6000"><state state="open"/><service name="x11"/></port>
+      <port protocol="udp" portid="623"><state state="open"/><service name="asf-rmcp" product="IPMI"/></port>
+      <port protocol="tcp" portid="2375"><state state="open"/><service name="docker"/></port>
+      <port protocol="tcp" portid="502"><state state="open"/><service name="modbus"/></port>
+      <port protocol="tcp" portid="9100"><state state="open"/><service name="jetdirect"/></port>
+      <port protocol="tcp" portid="1883"><state state="open"/><service name="mqtt"/></port>
+      <port protocol="udp" portid="500"><state state="open"/><service name="isakmp"/></port>
+      <port protocol="udp" portid="5060"><state state="open"/><service name="sip"/></port>
+      <port protocol="tcp" portid="1080"><state state="open"/><service name="socks5"/></port>
+    </ports>
+  </host>
+  <host>
+    <status state="up" reason="echo-reply"/>
+    <address addr="10.10.10.5" addrtype="ipv4"/>
+    <hostname name="dc01.corp.lab" type="user"/>
+    <os><osmatch name="Windows Server 2019" accuracy="96"><osclass type="general purpose" osfamily="Windows"/></osmatch></os>
+    <ports>
+      <port protocol="tcp" portid="88"><state state="open"/><service name="kerberos-sec"/></port>
+      <port protocol="tcp" portid="389"><state state="open"/><service name="ldap"/></port>
+      <port protocol="tcp" portid="445"><state state="open"/><service name="microsoft-ds" product="Windows Server 2019"/></port>
+      <port protocol="tcp" portid="3389"><state state="open"/><service name="ms-wbt-server"/></port>
+      <port protocol="tcp" portid="5985"><state state="open"/><service name="winrm"/></port>
+    </ports>
+  </host>
+</nmaprun>

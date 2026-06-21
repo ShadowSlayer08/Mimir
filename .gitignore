@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+*.whl
+
+# Build output
+/build/
+/dist/
+
+# Local engagement artifacts / config
+*.db
+engagement.*
+eng.json
+redengine.toml
+redengine.json
+
+# Flutter generated (run `flutter create` locally to regenerate platform dirs)
+flutter/.dart_tool/
+flutter/build/
+flutter/.flutter-plugins
+flutter/.flutter-plugins-dependencies
+flutter/ephemeral/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
