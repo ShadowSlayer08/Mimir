@@ -30,7 +30,8 @@ assess.py                     end-to-end CLI pipeline (scope gate -> scan -> ana
 profiles.py                   VAPT / Red Team scan profiles (enumeration depth only)
 evidence.py                   ingest an engagement evidence folder -> merged inventory
 reporting.py                  engagement report (MD/HTML) + ATT&CK Navigator layer
-ledger.py                     persistent SQLite engagement ledger
+ledger.py                     persistent SQLite engagement ledger (+ run diff, triage)
+enrich.py                     live CISA-KEV + FIRST-EPSS feeds (cached, offline-safe) for risk
 pentest_console.py            PySide6 console: Attack Paths + Modules tabs + staging queue
 attack_dashboard.py / red_engine.py   target-acquisition dashboard + single GUI entry (.exe)
 knowledge_loader.py           parses docs/ yaml knowledge blocks
@@ -56,6 +57,11 @@ pip install .[gui]                                     # redengine / redengine-c
 python build_app.py                                    # RedEngine.exe | RedEngine | RedEngine.app
 # Engagement JSON contract (feeds the read-only flutter/ desktop viewer)
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes --emit-json eng.json
+# Live risk enrichment + per-asset scoring + engagement ledger (run diff + triage)
+python enrich.py                                       # cache/summarise CISA-KEV + FIRST-EPSS
+python assess.py --from-xml tests/fixtures/full_scan.xml --yes --enrich --ledger eng.db
+python ledger.py eng.db                                # history + diff (new/fixed/muted)
+python ledger.py eng.db triage <key> --status false_positive   # disposition a finding
 ```
 
 ## Conventions
@@ -68,6 +74,7 @@ python assess.py --from-xml tests/fixtures/full_scan.xml --yes --emit-json eng.j
 
 ## Good next tasks
 1. Per-check risk tags (safe|intrusive) so VAPT hides lockout-risky steps.
-2. Wire `docs/risk_scoring.md` (CVSS+EPSS+Exposure+Business, KEV override) into severity.
+2. Surface live EPSS/KEV provenance in the report + a console triage UI (the risk
+   model, live enrichment via `enrich.py`, and ledger run-diff/triage already land in Phase 1).
 3. Operator runbook export from the staged queue (methodology checklist; operator runs it).
 4. Phase-2 hardening: scope guard, shared finding schema, per-host concurrency (see docs/PHASE2.md).

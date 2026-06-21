@@ -28,9 +28,20 @@ risk:
 ```
 
 The composite is wired into `nmap_analyzer` for CVE (vulners) findings via
-`composite_risk()`. Offline we have CVSS and the public-exploit flag but not
-EPSS or KEV; any component with no signal (EPSS here) is dropped and the
-remaining weights are **renormalised**, so partial data still yields a sane
-0-100 score. `assess.py --exposure/--business/--kev` feed the exposure, business
-and KEV-override inputs; KEV forces critical and a public exploit floors the
-band at high.
+`composite_risk()`. Any component with no signal is dropped and the remaining
+weights are **renormalised**, so partial data still yields a sane 0-100 score.
+KEV forces critical; a public exploit floors the band at high. exposure/business
+are clamped to 0-1.
+
+**Live enrichment (`assess.py --enrich`).** Pulls the CISA-KEV catalogue and
+FIRST-EPSS scores from their public feeds (no target is contacted), cached under
+the app data dir with a 24h TTL and an atomic, offline-safe write. `--offline`
+uses the cache only (and implies `--enrich`); a non-empty stale cache is
+preferred over no data. Each finding's EPSS is the **max EPSS over its CVEs**,
+feeding the `epss` component, and any KEV CVE forces that finding to critical —
+so scoring reflects what is *actually* exploited in the wild, not just CVSS.
+
+**Per-asset risk (`assess.py --assets assets.yaml`).** A YAML/JSON map of
+`host -> {exposure, business}` (level names — internet/internal/isolated,
+low/medium/high/critical — or raw 0-1 floats, clamped) overrides the global
+`--exposure/--business` per host. `--kev <file>` still works as a manual override.

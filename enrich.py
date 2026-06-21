@@ -34,27 +34,43 @@ def _cache_file(name):
 
 def _fresh(path, ttl):
     try:
-        return os.path.isfile(path) and (time.time() - os.path.getmtime(path)) < ttl
+        return (os.path.isfile(path) and os.path.getsize(path) > 0
+                and (time.time() - os.path.getmtime(path)) < ttl)
     except Exception:
         return False
 
 
+_UA = "redengine-enrich/1.0 (+authorized pentest tooling; public vuln feeds only)"
+
+
+def _stale(dest):
+    return dest if (os.path.isfile(dest) and os.path.getsize(dest) > 0) else None
+
+
 def _fetch(url, dest, ttl, offline, timeout=30):
-    """Return dest if a fresh cached copy exists, a download succeeds, or (when a
-    refresh is impossible) any stale cache exists; else None. Never raises."""
+    """Return dest if a fresh cache exists, a download succeeds, or (when a refresh
+    is impossible) any non-empty stale cache exists; else None. Never raises.
+
+    Writes atomically (temp + os.replace) and refuses to cache an empty body, so a
+    truncated/empty/interrupted download can never poison the cache for a TTL window
+    (a default User-Agent is sent — some CDNs 403 the bare python-requests UA)."""
     if _fresh(dest, ttl):
         return dest
     if offline:
-        return dest if os.path.isfile(dest) else None
+        return _stale(dest)
     try:
         import requests
-        r = requests.get(url, timeout=timeout)
+        r = requests.get(url, timeout=timeout, headers={"User-Agent": _UA})
         r.raise_for_status()
-        with open(dest, "wb") as fh:
+        if not r.content:
+            return _stale(dest)                              # empty 200 -> keep good cache
+        tmp = dest + ".tmp"
+        with open(tmp, "wb") as fh:
             fh.write(r.content)
+        os.replace(tmp, dest)                                # atomic on Windows + POSIX
         return dest
     except Exception:
-        return dest if os.path.isfile(dest) else None       # fall back to stale cache
+        return _stale(dest)                                  # fall back to a good stale cache
 
 
 def parse_kev(path):
@@ -68,10 +84,12 @@ def parse_kev(path):
 def parse_epss(path):
     """Dict CVE-id(upper) -> EPSS probability (0..1) from a FIRST EPSS csv.gz."""
     out = {}
-    opener = gzip.open if path.endswith(".gz") else open
+    with open(path, "rb") as fh:
+        gz = fh.read(2) == b"\x1f\x8b"             # detect gzip by content, not filename
+    opener = gzip.open if gz else open
     with opener(path, "rt", encoding="utf-8", errors="ignore") as fh:
         for row in csv.reader(fh):
-            if not row or row[0].startswith("#") or row[0].lower() == "cve":
+            if not row or not row[0] or row[0].startswith("#") or row[0].lower() == "cve":
                 continue
             try:
                 out[row[0].upper()] = float(row[1])

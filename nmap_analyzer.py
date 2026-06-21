@@ -205,8 +205,8 @@ def composite_risk(cvss10, epss=None, exposure=None, business=None,
     comps = {"cvss": max(0.0, min(1.0, (cvss10 or 0) / 10.0))}
     if epss is not None:
         comps["epss"] = max(0.0, min(1.0, float(epss)))
-    comps["exposure"] = cfg["default_exposure"] if exposure is None else exposure
-    comps["business"] = cfg.get("default_business", 0.5) if business is None else business
+    comps["exposure"] = max(0.0, min(1.0, cfg["default_exposure"] if exposure is None else exposure))
+    comps["business"] = max(0.0, min(1.0, cfg.get("default_business", 0.5) if business is None else business))
     den = sum(w.get(k, 0) for k in comps)
     score = round(sum(w.get(k, 0) * v for k, v in comps.items()) / den * 100) if den else 0
     band = _risk_band(score, bands)

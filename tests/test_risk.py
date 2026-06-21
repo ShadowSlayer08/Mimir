@@ -36,3 +36,16 @@ def test_defaults_downweight_unexploited_cvss():
 def test_low_isolated_stays_low():
     score, band = composite_risk(2.0, exposure=0.2, business=0.2)
     assert band in ("info", "low")
+
+
+def test_epss_raises_score():
+    # same CVSS/exposure/business; a high EPSS must push the composite up
+    base, _ = composite_risk(7.0, exposure=0.5, business=0.5)
+    hot, _ = composite_risk(7.0, epss=0.97, exposure=0.5, business=0.5)
+    assert hot > base
+
+
+def test_out_of_range_exposure_business_clamped():
+    # bad per-asset input (e.g. exposure: 5, business: -2) must not blow the score
+    score, band = composite_risk(9.8, exposure=5.0, business=-2.0)
+    assert 0 <= score <= 100 and band in ("critical", "high", "medium", "low", "info")

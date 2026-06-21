@@ -37,10 +37,12 @@ def test_parse_epss():
             fh.write("cve,epss,percentile\n")
             fh.write("CVE-2021-1234,0.97531,0.999\n")
             fh.write("CVE-2020-0001,0.00100,0.10\n")
+            fh.write(",0.5,0.99\n")                                 # malformed: empty CVE id
         m = enrich.parse_epss(p)
         assert abs(m["CVE-2021-1234"] - 0.97531) < 1e-6
         assert m["CVE-2020-0001"] == 0.001
-        assert "CVE" not in m and "#MODEL_VERSION:V2025" not in m   # header/comment skipped
+        assert "" not in m                                          # empty-CVE row skipped
+        assert "CVE" not in m                                       # header/comment skipped
     finally:
         os.unlink(p)
 

@@ -76,3 +76,35 @@ def test_triage_persists_and_partial_update():
     finally:
         if os.path.exists(db):
             os.unlink(db)
+
+
+def test_triage_mutes_finding_in_diff():
+    fd, db = tempfile.mkstemp(suffix=".db"); os.close(fd); os.unlink(db)
+    try:
+        scan = {"mode": "vapt", "target": "10.0.0.1"}
+        record_run(db, _report("C"), [], [], scan)       # SMB exposed @445
+        set_triage(db, finding_key({"host": "10.0.0.1", "port": 445, "title": "SMB exposed"}),
+                   status="false_positive")                # operator dispositions it
+        record_run(db, _report("C"), [], [], scan)         # same finding recurs
+        d = diff(db)
+        assert all(f["title"] != "SMB exposed" for f in d["still_open"])   # not nagged
+        assert any(f["title"] == "SMB exposed" for f in d["muted"])        # muted instead
+    finally:
+        if os.path.exists(db):
+            os.unlink(db)
+
+
+def test_triage_severity_override_applied_in_diff():
+    fd, db = tempfile.mkstemp(suffix=".db"); os.close(fd); os.unlink(db)
+    try:
+        scan = {"mode": "vapt", "target": "10.0.0.1"}
+        record_run(db, _report("C"), [], [], scan)
+        k = finding_key({"host": "10.0.0.1", "port": 445, "title": "SMB exposed"})
+        set_triage(db, k, status="confirmed", severity_override="critical")
+        record_run(db, _report("C"), [], [], scan)
+        d = diff(db)
+        smb = [f for f in d["still_open"] if f["title"] == "SMB exposed"]
+        assert smb and smb[0]["severity"] == "critical"   # override applied (status not muted)
+    finally:
+        if os.path.exists(db):
+            os.unlink(db)

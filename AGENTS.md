@@ -68,6 +68,7 @@ python red_engine.py tests/fixtures/full_scan.xml
    attack paths, evidence ingestion, ledger).
 2. KB validator in CI (`validate_kb.py`): registry entries resolve to modules; NSE/tool
    maps well-formed; every check carries an ATT&CK id.
-3. Wire `docs/risk_scoring.md` (CVSS+EPSS+Exposure+Business, KEV override) into severity.
+3. Surface live EPSS/KEV provenance in the report + a console triage UI (risk model,
+   live enrichment via `enrich.py`, and ledger run-diff/triage already done).
 4. Phase-2 hardening: scope guard, shared finding schema, per-host concurrency (docs/PHASE2.md).
 5. Operator runbook export from the staged queue (the operator executes it; the engine does not).

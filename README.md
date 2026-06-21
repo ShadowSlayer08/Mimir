@@ -41,3 +41,26 @@ redengine-cli --from-xml tests/fixtures/full_scan.xml --yes \
     --report engagement.html --emit-json engagement.json
 redengine                   # launch the GUI thick client
 ```
+
+## Risk enrichment & engagement ledger
+
+```
+# Live, current risk: CISA-KEV + FIRST-EPSS (public feeds only — no target is contacted),
+# cached + offline-safe. --offline uses the cache only.
+redengine-cli --from-xml scan.xml --yes --enrich
+
+# Per-asset scoring: host -> {exposure, business} (level names or 0-1 floats)
+redengine-cli --from-xml scan.xml --yes --enrich --assets assets.yaml
+
+# Engagement ledger: re-runs accrete; see what changed and triage findings
+redengine-cli --from-xml scan.xml --yes --ledger eng.db      # records the run
+python ledger.py eng.db                                      # history + diff (new / fixed / muted)
+python ledger.py eng.db triage <key> --status false_positive --owner you
+```
+
+Enrichment makes severity reflect what's **actually exploited in the wild** (EPSS
+per finding = max over its CVEs; any KEV CVE forces critical). The ledger turns
+repeat assessments into a **re-test diff** (new / fixed / still-open + grade
+deltas) and lets you **triage** findings (false-positive / accepted findings are
+muted from future diffs; a severity override is applied). Enrichment pulls public
+vulnerability feeds only; the engine still contacts no target outside the scan.

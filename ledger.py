@@ -107,7 +107,8 @@ def _run_findings(con, run_id):
 
 def diff(db_path, run_a=None, run_b=None):
     """Compare two runs (default: the last two). Returns new / fixed / still-open
-    finding lists + host grade changes, or None if there aren't two runs."""
+    finding lists (+ a muted bucket for triaged-out findings) + host grade
+    changes; None if there aren't two comparable runs."""
     con = _connect(db_path)
     try:
         ids = [r[0] for r in con.execute("SELECT id FROM runs ORDER BY id").fetchall()]
@@ -115,10 +116,30 @@ def diff(db_path, run_a=None, run_b=None):
             if len(ids) < 2:
                 return None
             run_a, run_b = ids[-2], ids[-1]
+        if not con.execute("SELECT 1 FROM run_findings WHERE run_id IN (?,?) LIMIT 1",
+                           (run_a, run_b)).fetchone():
+            return None                        # pre-snapshot DB: no comparable per-run data
         fa, fb = _run_findings(con, run_a), _run_findings(con, run_b)
-        new = [fb[k] for k in fb if k not in fa]
-        fixed = [fa[k] for k in fa if k not in fb]
-        still = [fb[k] for k in fb if k in fa]
+        triage = {r[0]: (r[1], r[2]) for r in con.execute(
+            "SELECT key,status,severity_override FROM triage").fetchall()}
+        muted_status = {"false_positive", "accepted", "remediated"}
+
+        def _ann(d, k):
+            st, ov = triage.get(k, (None, None))
+            d = dict(d, triage=st)
+            if ov:
+                d["severity"] = ov             # apply operator severity override
+            return d, (st in muted_status)
+
+        new, still, muted = [], [], []
+        for k in fb:
+            d, m = _ann(fb[k], k)
+            (muted if m else (still if k in fa else new)).append(d)
+        fixed = []
+        for k in fa:
+            if k not in fb:
+                d, m = _ann(fa[k], k)
+                (muted if m else fixed).append(d)
         ga = {r[0]: r[1] for r in con.execute(
             "SELECT hkey,grade FROM run_hosts WHERE run_id=?", (run_a,)).fetchall()}
         grade_changes = [{"label": lbl, "old": ga[hk], "new": g}
@@ -126,10 +147,10 @@ def diff(db_path, run_a=None, run_b=None):
                              "SELECT hkey,label,grade FROM run_hosts WHERE run_id=?", (run_b,)).fetchall()
                          if hk in ga and ga[hk] != g]
         rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-        for lst in (new, fixed, still):
+        for lst in (new, fixed, still, muted):
             lst.sort(key=lambda x: rank.get(x["severity"], 9))
         return {"run_a": run_a, "run_b": run_b, "new": new, "fixed": fixed,
-                "still_open": still, "grade_changes": grade_changes}
+                "still_open": still, "muted": muted, "grade_changes": grade_changes}
     finally:
         con.close()
 
@@ -169,6 +190,17 @@ def get_triage(db_path, key):
         con.close()
 
 
+def list_triage(db_path):
+    con = _connect(db_path)
+    try:
+        rows = con.execute("SELECT key,status,owner,notes,severity_override,updated "
+                           "FROM triage ORDER BY updated DESC").fetchall()
+        cols = ["key", "status", "owner", "notes", "severity_override", "updated"]
+        return [dict(zip(cols, r)) for r in rows]
+    finally:
+        con.close()
+
+
 def history(db_path):
     con = _connect(db_path)
     try:
@@ -176,33 +208,66 @@ def history(db_path):
                            "FROM runs ORDER BY id").fetchall()
         n_hosts = con.execute("SELECT COUNT(*) FROM hosts").fetchone()[0]
         n_find = con.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
-        recurring = con.execute("SELECT severity,host,port,title,seen FROM findings "
-                                "WHERE seen>1 ORDER BY seen DESC, severity LIMIT 20").fetchall()
+        recurring = con.execute(
+            "SELECT f.severity,f.host,f.port,f.title,f.seen,f.key,t.status,t.severity_override "
+            "FROM findings f LEFT JOIN triage t ON t.key=f.key "
+            "WHERE f.seen>1 ORDER BY f.seen DESC, f.severity LIMIT 20").fetchall()
         return runs, n_hosts, n_find, recurring
     finally:
         con.close()
 
 
 def main():
-    import sys
-    if len(sys.argv) < 2:
-        print("usage: python ledger.py <engagement.db>"); return 1
-    runs, n_hosts, n_find, recurring = history(sys.argv[1])
-    print(f"[+] {len(runs)} run(s) · {n_hosts} unique host(s) · {n_find} unique finding(s)\n")
+    import argparse
+    ap = argparse.ArgumentParser(prog="ledger.py",
+                                 description="engagement ledger: history, run diff, triage")
+    ap.add_argument("db")
+    sub = ap.add_subparsers(dest="cmd")
+    t = sub.add_parser("triage", help="set triage on a finding by its key")
+    t.add_argument("fkey")
+    t.add_argument("--status",
+                   choices=["open", "confirmed", "false_positive", "remediated", "accepted"])
+    t.add_argument("--owner")
+    t.add_argument("--notes")
+    t.add_argument("--severity-override", dest="sev",
+                   choices=["critical", "high", "medium", "low", "info"])
+    sub.add_parser("triage-list", help="list all triaged findings")
+    args = ap.parse_args()
+
+    if args.cmd == "triage":
+        set_triage(args.db, args.fkey, status=args.status, owner=args.owner,
+                   notes=args.notes, severity_override=args.sev)
+        print(f"[+] triaged {args.fkey}: status={args.status} owner={args.owner} "
+              f"override={args.sev}")
+        return 0
+    if args.cmd == "triage-list":
+        rows = list_triage(args.db)
+        if not rows:
+            print("(no triage records)"); return 0
+        for r in rows:
+            print(f"  {r['key']:14} [{(r['status'] or '-'):14}] "
+                  f"owner={r['owner'] or '-':10} override={r['severity_override'] or '-':8} "
+                  f"{r['notes'] or ''}")
+        return 0
+
+    runs, n_hosts, n_find, recurring = history(args.db)
+    print(f"[+] {len(runs)} run(s) | {n_hosts} unique host(s) | {n_find} unique finding(s)\n")
     for r in runs:
         print(f"  run #{r[0]:<3} {r[1]}  mode={r[2]:<8} src={r[3]:<8} target={r[4]:<22} "
               f"hosts={r[5]} findings={r[6]} paths={r[7]}")
     if recurring:
-        print("\n  recurring findings (seen in >1 run):")
-        for sev, host, port, title, seen in recurring:
+        print("\n  recurring findings (seen in >1 run):  [key -> `ledger.py <db> triage <key>`]")
+        for sev, host, port, title, seen, key, status, ov in recurring:
             tgt = f"{host}:{port}" if port else host
-            print(f"    [{sev.upper():8}] x{seen}  {tgt}  {title}")
+            tag = f"  ({status}{'/' + ov if ov else ''})" if status else ""
+            print(f"    {key:14} [{(ov or sev).upper():8}] x{seen}  {tgt}  {title}{tag}")
     if len(runs) >= 2:
-        d = diff(sys.argv[1])
+        d = diff(args.db)
         if d:
+            muted = f", {len(d.get('muted', []))} muted" if d.get("muted") else ""
             print(f"\n  changes (run #{d['run_a']} -> #{d['run_b']}): "
                   f"{len(d['new'])} new, {len(d['fixed'])} fixed, "
-                  f"{len(d['still_open'])} still-open")
+                  f"{len(d['still_open'])} still-open{muted}")
             for f in d["new"][:10]:
                 tgt = f"{f['host']}:{f['port']}" if f['port'] else f['host']
                 print(f"    + [{f['severity'].upper():8}] {tgt}  {f['title']}")

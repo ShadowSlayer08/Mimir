@@ -504,7 +504,7 @@ def build_parser():
                     help="enrich risk scoring with live CISA-KEV + FIRST-EPSS feeds "
                          "(cached under the app data dir; egress to public feeds only)")
     ap.add_argument("--offline", action="store_true",
-                    help="with --enrich, never fetch — use cached feeds only")
+                    help="use cached intel only, never fetch (implies --enrich)")
     ap.add_argument("--assets", dest="assets_file",
                     help="YAML/JSON map of host -> {exposure, business} for per-asset risk scoring")
     ap.add_argument("--ports", help="nmap -p port spec (default: nmap default ports)")
@@ -623,7 +623,7 @@ def _load_assets(path):
         if cfg.get("business") is not None:
             entry["business"] = BUSINESS_LEVELS.get(str(cfg["business"]).lower(),
                                                     _num_or_none(cfg["business"]))
-        entry = {k: v for k, v in entry.items() if v is not None}
+        entry = {k: max(0.0, min(1.0, v)) for k, v in entry.items() if v is not None}
         if entry:
             out[host] = entry
     return out
@@ -718,6 +718,8 @@ def build_engagement_json(report, mods, paths, scan_meta):
 
 
 def main(argv=None):
+    from nmap_analyzer import _force_utf8_stdio   # console safety, not just via import side-effect
+    _force_utf8_stdio()
     args = build_parser().parse_args(argv)
 
     targets, hosts, meta, _src, evidence = derive_targets(args)
@@ -770,7 +772,7 @@ def main(argv=None):
             import re as _re
             kev = {c.upper() for c in _re.findall(r"CVE-\d{4}-\d+", fh.read(), _re.I)}
     epss_map = None
-    if args.enrich:
+    if args.enrich or args.offline:                # --offline implies cache-only enrichment
         try:
             from enrich import enrich as _enrich
             kev_live, epss_map = _enrich(offline=args.offline)
@@ -907,10 +909,12 @@ def main(argv=None):
         print(C.grn(f"[+] Recorded run #{rid} in ledger {args.ledger_db}"))
         d = diff(args.ledger_db)
         if d and (d["new"] or d["fixed"] or d["grade_changes"]):
+            muted = d.get("muted", [])
             print(C.bold("  Changes since previous run: ")
                   + C.red(f"{len(d['new'])} new") + ", "
                   + C.grn(f"{len(d['fixed'])} fixed") + ", "
-                  + f"{len(d['still_open'])} still-open")
+                  + f"{len(d['still_open'])} still-open"
+                  + (f", {len(muted)} muted" if muted else ""))
             for f in d["new"][:8]:
                 tgt = f"{f['host']}:{f['port']}" if f['port'] else f['host']
                 print(C.red(f"    + [{f['severity']}] {tgt}  {f['title']}"))
