@@ -38,7 +38,8 @@ def web_targets_from_report(report):
                    or port in (443, 8443))
             scheme = "https" if tls else "http"
             host_for_url = label if h.get("hostnames") else ip
-            ref = f"{scheme}://{host_for_url}" + ("" if port in (80, 443) else f":{port}")
+            default_port = (scheme == "https" and port == 443) or (scheme == "http" and port == 80)
+            ref = f"{scheme}://{host_for_url}" + ("" if default_port else f":{port}")
             out.append({"kind": "web", "ref": ref, "label": label, "host": label,
                         "ip": ip, "port": port, "scheme": scheme, "tls": tls, "source": "auto"})
     return out
@@ -53,10 +54,10 @@ def parse_web(values):
                 continue
             if not re.match(r"^https?://", url, re.I):
                 url = "http://" + url
-            m = re.match(r"^(https?)://([^/:]+)(?::(\d+))?", url, re.I)
+            m = re.match(r"^(https?)://(?:\[([^\]]+)\]|([^/:]+))(?::(\d+))?", url, re.I)
             scheme = (m.group(1).lower() if m else "http")
-            host = m.group(2) if m else url
-            port = int(m.group(3)) if (m and m.group(3)) else (443 if scheme == "https" else 80)
+            host = (m.group(2) or m.group(3)) if m else url        # group(2) = IPv6 literal
+            port = int(m.group(4)) if (m and m.group(4)) else (443 if scheme == "https" else 80)
             out.append({"kind": "web", "ref": url.rstrip("/"), "label": host, "host": host,
                         "ip": host, "port": port, "scheme": scheme,
                         "tls": scheme == "https", "source": "operator"})
@@ -67,9 +68,10 @@ def app_targets(report, web=()):
     """Combined, de-duplicated application targets (auto-promoted + operator-supplied)."""
     seen, out = set(), []
     for t in web_targets_from_report(report) + parse_web(web):
-        if t["ref"].lower() in seen:
+        key = (t["kind"], t["scheme"], t["host"].lower(), t["port"])   # normalised identity
+        if key in seen:
             continue
-        seen.add(t["ref"].lower())
+        seen.add(key)
         out.append(t)
     return out
 

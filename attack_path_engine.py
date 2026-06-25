@@ -53,11 +53,10 @@ REMOTE_SVC_TECH = {
     "mysql": "T1078", "ms-sql-s": "T1078", "postgresql": "T1078",
     "mongodb": "T1078", "redis": "T1078",
     "ftp": "T1078", "telnet": "T1078",
-    # Web/application services are public-facing initial-access surface, so an app
-    # finding chains into the host's onward (lateral/AD) paths — cross-layer.
-    "http": "T1190", "https": "T1190", "http-alt": "T1190",
-    "http-proxy": "T1190", "www": "T1190", "soap": "T1190",
 }
+# Public-facing web/app services that originate a staged initial-access (T1190)
+# capability (seeded in generate_paths, NOT a credential-reuse landing service).
+WEB_SERVICES = ("http", "https", "http-alt", "http-proxy", "www", "soap")
 CRED_SOURCE_HINTS = ("heartbleed", "telnet", "cleartext", "anonymous ftp",
                      "default cred", "snmp", "ftp is cleartext")
 DC_SERVICE_HINTS = ("kerberos", "ldap", "kpasswd", "ldapssl", "globalcat")
@@ -185,6 +184,22 @@ def _conf_min(*levels):
     return min(levels, key=lambda c: order.index(c) if c in order else 0)
 
 
+def _seed_web_caps(caps, services):
+    """A public-facing web app is staged initial-access surface (T1190). Seed it as
+    an entry capability for any web host with no stronger confirmed RCE, so the web
+    app originates a path the host's onward services extend (cross-layer)."""
+    for host, svcs in services.items():
+        if any(c["cap"] in ("rce", "rce_system") for c in caps.get(host, [])):
+            continue
+        if any(s in WEB_SERVICES or s.startswith("http") for s in svcs):
+            caps.setdefault(host, []).append({
+                "cap": "webapp", "tech": "T1190", "confidence": "low",
+                "guidance": "Public-facing web app: test for exploitable flaws "
+                            "(injection/SSTI/SSRF/deserialization) in scope; a confirmed "
+                            "flaw is initial access onto this host.",
+                "basis": "Public-facing web application", "severity": "medium"})
+
+
 # --------------------------------------------------------------------------- #
 # Path generation
 # --------------------------------------------------------------------------- #
@@ -192,6 +207,7 @@ def generate_paths(report):
     findings = report.get("findings", [])
     services = _host_services(report)
     caps = _capabilities(findings)
+    _seed_web_caps(caps, services)        # web apps = staged initial access (T1190)
     paths = []
     counter = itertools.count(1)
 
@@ -215,6 +231,15 @@ def generate_paths(report):
                 mkid(), f"RCE on {host} via {c['basis'][:40]}",
                 "rce", sev, c["confidence"], score, [host], steps,
                 "Direct foothold from a single confirmed exposure."))
+        for c in [c for c in hcaps if c["cap"] == "webapp"]:
+            steps = [Step(1, "Initial Access", "T1190", TECH["T1190"], host,
+                          c["basis"], c["guidance"])]
+            paths.append(AttackPath(
+                mkid(), f"Web-app initial-access surface on {host}",
+                "webapp", _path_severity([c]), c["confidence"],
+                SEV_WEIGHT.get(c["severity"], 0), [host], steps,
+                "Public-facing web app is staged initial-access surface; confirm an "
+                "exploitable flaw via the web_app WSTG methodology, in scope."))
 
     # ---- 2. credential-exposure -> lateral movement ----
     cred_hosts = {h: [c for c in cs if c["cap"] in ("cred_exposure", "data_access")]

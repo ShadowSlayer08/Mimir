@@ -41,7 +41,7 @@ BUILTIN_CHECKS = [
      "nuclei -u {url}", "Run known-CVE and misconfiguration templates."),
     ("TLS posture", "T1595", "WSTG-CRYP-01", "CWE-326", "safe", "tls",
      "sslscan {host}:{port}", "Enumerate protocols, ciphers and certificate issues."),
-    ("Auth: default/weak creds", "T1110.001", "WSTG-ATHN-02", "CWE-307", "intrusive", _A,
+    ("Auth default/weak creds", "T1110.001", "WSTG-ATHN-02", "CWE-307", "intrusive", _A,
      "# authorized only: hydra -L {users} -P {passwords} {host} http-post-form '<path>:<body>:<fail>'",
      "Test the login for default/weak credentials (in scope)."),
     ("Session & JWT", "T1539", "WSTG-SESS-02", "CWE-614", "safe", _A,
@@ -133,10 +133,10 @@ class WebAppModule:
             if c.get("attack"):
                 techs.add(c["attack"])
 
-        surface = ["Public-facing web application — staged initial-access surface "
+        surface = ["Public-facing web application - staged initial-access surface "
                    "(T1190); a confirmed app flaw chains into this host's onward paths."]
         if not tls:
-            surface.append("Cleartext HTTP — credentials and sessions exposed on-path.")
+            surface.append("Cleartext HTTP - credentials and sessions exposed on-path.")
         if any(f.get("category") == "CVE (vulners)" for f in rel):
             surface.append("Underlying server version has known CVEs (see findings).")
 

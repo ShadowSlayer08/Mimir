@@ -72,3 +72,27 @@ def test_dispatch_merges_app_results():
     rep = _report()
     mods = dispatch(rep, mode="redteam", app_targets=app_targets(rep))
     assert any(m["module"] == "web_app" for m in mods)     # app results merged with host modules
+
+
+def test_parse_web_ipv6():
+    t = parse_web(["http://[::1]:8080", "https://[2001:db8::1]"])
+    assert any(x["host"] == "::1" and x["port"] == 8080 for x in t)        # bracketed IPv6 + port
+    assert any(x["host"] == "2001:db8::1" and x["port"] == 443 for x in t)
+
+
+def test_app_targets_dedup_default_port():
+    rep = {"hosts": [{"ip": "10.0.0.9", "hostnames": ["h"], "ipv6": "",
+                      "ports": [{"port": 443, "service": {"name": "https", "tunnel": "ssl"}}]}]}
+    # auto-promoted https://h and operator https://h:443 are the SAME target -> deduped
+    t = [x for x in app_targets(rep, web=["https://h:443"]) if x["host"] == "h"]
+    assert len(t) == 1
+
+
+def test_web_host_originates_t1190_path():
+    from attack_path_engine import generate_paths
+    rep = {"findings": [], "hosts": [
+        {"ip": "10.0.0.9", "hostnames": ["shop.lab"], "ipv6": "",
+         "ports": [{"port": 443, "service": {"name": "https", "tunnel": "ssl"}}]}]}
+    paths = generate_paths(rep)
+    # a web host with no other findings still originates an Initial-Access (T1190) entry
+    assert any(p["kind"] == "webapp" and p["steps"][0]["technique_id"] == "T1190" for p in paths)
