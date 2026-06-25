@@ -1,0 +1,74 @@
+"""AppSec pillar: application targets + the OWASP-WSTG web module (target-driven)."""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from apptargets import web_targets_from_report, parse_web, app_targets  # noqa: E402
+from modules import dispatch, dispatch_apps  # noqa: E402
+from modules.web_app import WebAppModule  # noqa: E402
+
+
+def _report():
+    return {
+        "hosts": [
+            {"ip": "10.0.0.5", "hostnames": ["dc01.lab"], "ipv6": "", "os": [],
+             "ports": [
+                 {"port": 443, "protocol": "tcp",
+                  "service": {"name": "https", "product": "nginx", "version": "1.20", "tunnel": "ssl"}},
+                 {"port": 8080, "protocol": "tcp",
+                  "service": {"name": "http-alt", "product": "", "version": "", "tunnel": ""}},
+             ]},
+        ],
+        "findings": [
+            {"host": "dc01.lab", "port": 443, "category": "CVE (vulners)", "severity": "high",
+             "title": "nginx 1.20: known CVEs", "cve": ["CVE-2021-1"]},
+        ],
+    }
+
+
+def test_auto_promote_http_services():
+    t = web_targets_from_report(_report())
+    refs = {x["ref"] for x in t}
+    assert "https://dc01.lab" in refs          # 443 -> https, default port dropped
+    assert "http://dc01.lab:8080" in refs      # http-alt -> http with explicit port
+    assert all(x["kind"] == "web" for x in t)
+
+
+def test_parse_web_normalises():
+    t = parse_web(["example.com", "https://h2:8443/app, http://h3"])
+    refs = [x["ref"] for x in t]
+    assert "http://example.com" in refs        # bare host -> http
+    assert any(x["scheme"] == "https" and x["port"] == 8443 for x in t)
+    assert len(t) == 3                          # comma + whitespace split
+
+
+def test_web_module_checks_carry_owasp_cwe_attack():
+    tgt = {"kind": "web", "ref": "https://dc01.lab", "label": "dc01.lab", "host": "dc01.lab",
+           "ip": "10.0.0.5", "port": 443, "scheme": "https", "tls": True}
+    res = WebAppModule().assess_target(tgt, _report()["findings"])[0].to_dict()
+    assert res["module"] == "web_app"
+    chk = {c["name"]: c for c in res["checks"]}
+    assert chk["Fingerprint"]["owasp"].startswith("WSTG")
+    assert chk["Fingerprint"]["cwe"].startswith("CWE")
+    assert all(c["attack"] for c in res["checks"])         # every check ATT&CK-tagged
+    assert res["severity"] == "high"                       # inherits the related CVE finding
+
+
+def test_intrusive_web_checks_hidden_in_vapt():
+    rep = _report()
+    apps = app_targets(rep)
+    full = dispatch_apps(apps, rep, mode="redteam")
+    vapt = dispatch_apps(apps, rep, mode="vapt")
+
+    def names(results):
+        return {c["name"] for r in results for c in r["checks"]}
+    assert "SQL injection" in names(full)                  # shown in red team
+    assert "SQL injection" not in names(vapt)              # hidden in VAPT (intrusive)
+    assert "Fingerprint" in names(vapt)                    # safe checks still shown
+
+
+def test_dispatch_merges_app_results():
+    rep = _report()
+    mods = dispatch(rep, mode="redteam", app_targets=app_targets(rep))
+    assert any(m["module"] == "web_app" for m in mods)     # app results merged with host modules

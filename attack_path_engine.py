@@ -53,6 +53,10 @@ REMOTE_SVC_TECH = {
     "mysql": "T1078", "ms-sql-s": "T1078", "postgresql": "T1078",
     "mongodb": "T1078", "redis": "T1078",
     "ftp": "T1078", "telnet": "T1078",
+    # Web/application services are public-facing initial-access surface, so an app
+    # finding chains into the host's onward (lateral/AD) paths — cross-layer.
+    "http": "T1190", "https": "T1190", "http-alt": "T1190",
+    "http-proxy": "T1190", "www": "T1190", "soap": "T1190",
 }
 CRED_SOURCE_HINTS = ("heartbleed", "telnet", "cleartext", "anonymous ftp",
                      "default cred", "snmp", "ftp is cleartext")

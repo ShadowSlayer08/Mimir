@@ -66,7 +66,7 @@ REGISTRY = [
     RTSPModule(), IoTModule(),
 ]
 
-__all__ = ["dispatch", "REGISTRY", "Module", "ModuleResult", "Check", "host_label"]
+__all__ = ["dispatch", "dispatch_apps", "REGISTRY", "Module", "ModuleResult", "Check", "host_label"]
 
 
 # --------------------------------------------------------------------------- #
@@ -169,7 +169,8 @@ def _build_result(mdef, host, findings, port_obj, ms17010):
         if not _flag(c.get("when"), flags):
             continue
         checks.append(Check(c["name"], _fmt(c["command"], ctx), c.get("purpose", ""),
-                            c.get("attack", "")).to_dict())
+                            c.get("attack", ""), c.get("owasp", ""), c.get("cwe", ""),
+                            c.get("risk", "")).to_dict())
         if c.get("attack"):
             techs.add(c["attack"])
 
@@ -242,7 +243,7 @@ import re as _re
 # Brute-force / credential-spraying / lockout-risky tooling -> "intrusive".
 _INTRUSIVE_CMD = _re.compile(
     r"\b(hydra|medusa|ncrack|crackmapexec|crowbar|onesixtyone|svcrack|svwar|"
-    r"kerbrute|psk-crack|patator|brute|spray)\b", _re.I)
+    r"kerbrute|psk-crack|patator|sqlmap|wfuzz|commix|brute|spray)\b", _re.I)
 
 
 def _is_intrusive(check):
@@ -271,11 +272,30 @@ def _apply_mode(results, mode):
     return results
 
 
-def dispatch(report, docs_dir=None, mode=None):
-    """Route every host through the knowledge-driven modules (docs-backed).
+def dispatch_apps(app_targets, report, mode=None, docs_dir=None):
+    """Assess application targets (web apps now; API/mobile/thick later) — the
+    target-driven AppSec methodology, parallel to the service-driven host modules.
+    Staging only; intrusive checks are mode-filtered like the host modules."""
+    from collections import defaultdict
+    from .web_app import WebAppModule
+    by_host = defaultdict(list)
+    for f in report.get("findings", []):
+        by_host[f["host"]].append(f)
+    wm = WebAppModule(docs_dir)
+    results = []
+    for t in (app_targets or []):
+        if t.get("kind") == "web":
+            results += [r.to_dict() if isinstance(r, ModuleResult) else r
+                        for r in wm.assess_target(t, by_host.get(t.get("host"), []))]
+    return _apply_mode(results, mode)
 
-    mode='vapt' hides intrusive (credential-testing/brute) checks; 'redteam' or
-    None shows the full methodology."""
+
+def dispatch(report, docs_dir=None, mode=None, app_targets=None):
+    """Route every host through the knowledge-driven modules (docs-backed), and
+    assess any application targets (web apps) supplied in app_targets.
+
+    mode='vapt' hides intrusive (credential-testing/brute/injection) checks;
+    'redteam' or None shows the full methodology."""
     try:
         from knowledge_loader import load_knowledge
         kb = load_knowledge(docs_dir)
@@ -283,5 +303,7 @@ def dispatch(report, docs_dir=None, mode=None):
     except Exception:
         results = _dispatch_builtin(report)
     results = _apply_mode(results, mode)
+    if app_targets:
+        results += dispatch_apps(app_targets, report, mode, docs_dir)
     results.sort(key=lambda r: (SEV_RANK.get(r["severity"], 9), r["module"], r["target"]))
     return results

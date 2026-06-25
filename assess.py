@@ -519,6 +519,10 @@ def build_parser():
                     help="write the stable engagement JSON contract (hosts, findings, "
                          "ATT&CK attack paths, kill-chain) for the Flutter desktop viewer "
                          "/ external frontends")
+    ap.add_argument("--web", action="append", default=[],
+                    help="web app target URL for OWASP-WSTG AppSec methodology "
+                         "(repeatable; comma-separated ok). Discovered http/https "
+                         "services are auto-promoted to web targets regardless.")
     ap.add_argument("--report", dest="report_out",
                     help="write an engagement report (.md or .html by extension)")
     ap.add_argument("--navigator", dest="navigator_out",
@@ -792,7 +796,12 @@ def main(argv=None):
 
     # Stage 3 — possible pentesting
     banner("Stage 3 — Possible pentesting (per-service methodology)")
-    mods = dispatch(report, mode=args.mode)
+    from apptargets import app_targets as _app_targets
+    apps = _app_targets(report, web=args.web)
+    if apps:
+        srcs = ", ".join(t["ref"] for t in apps[:6]) + (" ..." if len(apps) > 6 else "")
+        print(C.dim(f"  {len(apps)} application target(s) for AppSec methodology: {srcs}"))
+    mods = dispatch(report, mode=args.mode, app_targets=apps)
     print_modules(mods)
     # Tool availability advisory (config.missing_tools): flag operator tools not on PATH.
     import config as _cfg

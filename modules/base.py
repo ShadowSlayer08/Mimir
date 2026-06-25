@@ -27,6 +27,9 @@ class Check:
     command: str          # recon / authorized-testing command template
     purpose: str
     attack: str = ""      # MITRE ATT&CK technique id (mostly Discovery/Recon)
+    owasp: str = ""       # OWASP ref (WSTG / API Top 10 / MASVS) for AppSec checks
+    cwe: str = ""         # CWE id (AppSec)
+    risk: str = ""        # "" | "safe" | "intrusive"  (intrusive is hidden in VAPT mode)
 
     def to_dict(self):
         return asdict(self)

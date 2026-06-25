@@ -70,6 +70,7 @@ py-modules = [
     "containers",
     "config",
     "findings",
+    "apptargets",
     "ciphers",
     "ciphers_v4",
     "validate_kb",
@@ -77,9 +78,10 @@ py-modules = [
 # 'docs' / 'docs.modules' are data-only packages carrying the Markdown KB so it
 # ships in the wheel and is addressable via importlib.resources.files('docs').
 # Requires docs/__init__.py and docs/modules/__init__.py marker files.
-packages = ["modules", "docs", "docs.modules"]
+packages = ["modules", "docs", "docs.modules", "docs.appsec"]
 include-package-data = true
 
 [tool.setuptools.package-data]
 "docs" = ["*.md"]
 "docs.modules" = ["*.md"]
+"docs.appsec" = ["*.md"]
