@@ -17,6 +17,7 @@ Each file below carries a fenced ```yaml block the loader merges:
 | `nse_mapping.md` | service → recommended NSE scripts | enumeration |
 | `tool_mapping.md` | service → external tools | enumeration |
 | `risk_scoring.md` | CVSS+EPSS+Exposure+Business weights, bands, KEV override; live EPSS/KEV via `enrich.py` (`--enrich`) | risk model |
+| `appsec/web.md` | OWASP-WSTG web-app methodology (target-driven; checks carry OWASP+CWE) | web_app module |
 | `modules/web.md` | HTTP/HTTPS methodology (checks, attack surface) | web module |
 | `modules/smb.md` | SMB methodology | smb module |
 | `modules/active_directory.md` | LDAP/Kerberos/AD methodology | AD module |

@@ -103,7 +103,9 @@ def build_markdown(report, modules, paths, scan=None):
         for s in m.get("attack_surface", []):
             L.append(f"- ⚠ {s}")
         for c in m.get("checks", []):
-            L.append(f"- `{c['attack']}` **{c['name']}** — {c['purpose']}\n  ```\n  {c['command']}\n  ```")
+            ref = " ".join(x for x in (c.get("owasp", ""), c.get("cwe", "")) if x)
+            ref = f" _({ref})_" if ref else ""
+            L.append(f"- `{c['attack']}`{ref} **{c['name']}** — {c['purpose']}\n  ```\n  {c['command']}\n  ```")
         L.append("")
 
     L.append("## Staged attack paths (operator queue)\n")
@@ -164,8 +166,10 @@ def build_html(report, modules, paths, scan=None):
             mods.append(f"<p>{_h(m['summary'])}</p>")
         for s in m.get("attack_surface", []):
             mods.append(f"<p class=warn>⚠ {_h(s)}</p>")
-        mods.append("<table><tr><th>ATT&CK</th><th>Check</th><th>Command</th></tr>" + "".join(
-            f"<tr><td>{_h(c['attack'])}</td><td>{_h(c['name'])}</td>"
+        mods.append("<table><tr><th>ATT&CK</th><th>Refs</th><th>Check</th><th>Command</th></tr>" + "".join(
+            f"<tr><td>{_h(c['attack'])}</td>"
+            f"<td>{_h(' '.join(x for x in (c.get('owasp', ''), c.get('cwe', '')) if x))}</td>"
+            f"<td>{_h(c['name'])}</td>"
             f"<td><code>{_h(c['command'])}</code></td></tr>" for c in m.get("checks", [])) + "</table>")
     paths_html = []
     for p in paths:
@@ -234,7 +238,9 @@ def build_runbook(report, modules, paths, scan=None):
             for note in m.get("attack_surface", []):
                 L.append(f"> ⚠ {note}")
             for c in m.get("checks", []):
-                L.append(f"- [ ] `{c['attack']}` **{c['name']}** — {c['purpose']}\n"
+                ref = " ".join(x for x in (c.get("owasp", ""), c.get("cwe", "")) if x)
+                ref = f" _({ref})_" if ref else ""
+                L.append(f"- [ ] `{c['attack']}`{ref} **{c['name']}** — {c['purpose']}\n"
                          f"      ```\n      {c['command']}\n      ```")
         L.append("")
     return "\n".join(L) + "\n"

@@ -19,7 +19,8 @@ with a PySide6 (Qt6) console / dashboard for review and tracking.
   Markdown (fenced ```yaml blocks). The Python is a generic engine that loads
   them. Prefer a doc edit over a code change.
 - **ATT&CK is the shared vocabulary.** Every check / path step carries a
-  technique id.
+  technique id; AppSec checks (web/API/...) additionally carry an OWASP
+  (WSTG / API Top 10 / MASVS) reference and a CWE id.
 
 ## Layout
 ```
@@ -32,11 +33,13 @@ evidence.py                   ingest an engagement evidence folder -> merged inv
 reporting.py                  engagement report (MD/HTML) + ATT&CK Navigator layer
 ledger.py                     persistent SQLite engagement ledger (+ run diff, triage)
 enrich.py                     live CISA-KEV + FIRST-EPSS feeds (cached, offline-safe) for risk
+apptargets.py                 AppSec: web-app targets (auto-promote http/https + operator --web)
 pentest_console.py            PySide6 console: Attack Paths + Modules tabs + staging queue
 attack_dashboard.py / red_engine.py   target-acquisition dashboard + single GUI entry (.exe)
 knowledge_loader.py           parses docs/ yaml knowledge blocks
 validate_kb.py                knowledge-base integrity check (CI)
 modules/                      generic doc-backed dispatcher + per-service fallbacks
+                              (+ web_app: target-driven OWASP-WSTG AppSec module)
 docs/                         the knowledge base (constitution, registry, maps, module methodology)
 tests/                        run_tests.py + fixtures (full_scan.xml, scan.xml, scan.nmap)
 ```
@@ -48,6 +51,7 @@ python run_tests.py ; python validate_kb.py
 python nmap_analyzer.py tests/fixtures/full_scan.xml --no-gui --json /tmp/r.json
 python -m modules tests/fixtures/full_scan.xml          # knowledge-driven methodology
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes
+python assess.py --from-xml tests/fixtures/full_scan.xml --yes --web http://target/app  # AppSec: OWASP-WSTG (http/https auto-promoted)
 python attack_path_engine.py tests/fixtures/full_scan.xml
 python knowledge_loader.py                              # KB summary; run after editing docs/
 # GUIs (need a display; headless: --selftest)

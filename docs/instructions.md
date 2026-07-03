@@ -24,7 +24,8 @@ and renders the knowledge. Prefer a doc edit over a code change.
 
 ## 4. MITRE ATT&CK is the backbone
 Every check and attack-path step carries an ATT&CK technique id, so findings,
-modules and paths share one vocabulary.
+modules and paths share one vocabulary. AppSec checks (web/API/mobile) additionally
+carry an OWASP (WSTG / API Top 10 / MASVS) reference and a CWE id alongside it.
 
 ## 5. Engineering conventions
 - CLI-first; every capability runs headless (`--no-gui` / `--selftest`).

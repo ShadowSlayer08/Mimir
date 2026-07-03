@@ -25,7 +25,8 @@ PySide6 (Qt6) console for review and execution tracking.
   Markdown (fenced ```yaml blocks). The Python is a generic engine that loads
   them. Prefer a doc edit over a code change.
 - **ATT&CK is the shared vocabulary.** Every check / path step carries a
-  technique/sub-technique id.
+  technique/sub-technique id; AppSec checks (web/API/...) additionally carry an
+  OWASP (WSTG / API Top 10 / MASVS) reference and a CWE id.
 
 ## Layout
 ```
@@ -35,6 +36,7 @@ attack_path_engine.py         findings -> ATT&CK attack paths (Correlation; stag
 assess.py                     end-to-end CLI pipeline (scope gate -> scan -> analyse -> stage)
 profiles.py / evidence.py     scan profiles (VAPT/Red Team) + evidence-folder ingestion
 reporting.py / ledger.py      engagement report + ATT&CK Navigator layer; SQLite ledger
+apptargets.py / modules/web_app.py   AppSec: web apps as target-driven OWASP-WSTG objects
 pentest_console.py            PySide6 console: Attack Paths + Modules tabs + staging queue
 attack_dashboard.py / red_engine.py   dashboard + single GUI entry (.exe)
 knowledge_loader.py / validate_kb.py  load + validate the docs/ knowledge base

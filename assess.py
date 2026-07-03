@@ -667,7 +667,8 @@ def build_engagement_json(report, mods, paths, scan_meta):
 
     findings = [{"host": f.get("host", "?"), "port": f.get("port", 0),
                  "severity": f.get("severity", "info"), "category": f.get("category", ""),
-                 "title": f.get("title", ""), "cve": f.get("cve", [])}
+                 "title": f.get("title", ""), "cve": f.get("cve", []),
+                 "owasp": f.get("owasp", []), "cwe": f.get("cwe", [])}
                 for f in report.get("findings", [])]
 
     attack_paths = []

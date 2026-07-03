@@ -39,8 +39,15 @@ details and the optional read-only `flutter/` desktop viewer.
 ```
 redengine-cli --from-xml tests/fixtures/full_scan.xml --yes \
     --report engagement.html --emit-json engagement.json
+redengine-cli --from-xml scan.xml --yes --web http://target/app   # AppSec: web-app OWASP-WSTG methodology
 redengine                   # launch the GUI thick client
 ```
+
+**AppSec pillar:** web apps are first-class, target-driven assessment objects.
+Discovered http/https services are auto-promoted (and `--web URL` adds explicit
+ones), then assessed with an OWASP **WSTG** methodology — each check tagged with
+its ATT&CK technique plus an OWASP (WSTG) ref and a CWE. A web app is staged as a
+**T1190** initial-access entry that chains into the host's onward paths.
 
 ## Risk enrichment & engagement ledger
 
