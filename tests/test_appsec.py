@@ -63,9 +63,10 @@ def test_intrusive_web_checks_hidden_in_vapt():
 
     def names(results):
         return {c["name"] for r in results for c in r["checks"]}
-    assert "SQL injection" in names(full)                  # shown in red team
-    assert "SQL injection" not in names(vapt)              # hidden in VAPT (intrusive)
+    assert {"SQL injection", "Command injection"} <= names(full)   # shown in red team
+    assert not ({"SQL injection", "Command injection"} & names(vapt))  # hidden in VAPT (intrusive)
     assert "Fingerprint" in names(vapt)                    # safe checks still shown
+    assert "XSS" in names(vapt)                            # dalfox XSS check is safe/staged
 
 
 def test_dispatch_merges_app_results():
