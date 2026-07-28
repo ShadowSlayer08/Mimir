@@ -97,3 +97,34 @@ def test_web_host_originates_t1190_path():
     paths = generate_paths(rep)
     # a web host with no other findings still originates an Initial-Access (T1190) entry
     assert any(p["kind"] == "webapp" and p["steps"][0]["technique_id"] == "T1190" for p in paths)
+
+
+def test_api_target_and_module():
+    from apptargets import parse_api
+    from modules.api import APIModule
+    t = parse_api(["https://api.lab/v1"])[0]
+    assert t["kind"] == "api" and t["scheme"] == "https"
+    res = APIModule().assess_target(t, [])[0].to_dict()
+    assert res["module"] == "api"
+    names = {c["name"] for c in res["checks"]}
+    assert "BOLA (object-level authz)" in names            # OWASP API1:2023
+    assert all(c["attack"] for c in res["checks"])
+    assert any(c["owasp"].startswith("API") for c in res["checks"])   # API-Top-10 refs
+
+
+def test_api_intrusive_hidden_in_vapt():
+    from modules import dispatch_apps
+    from apptargets import parse_api
+    rep = {"hosts": [], "findings": []}
+    apps = parse_api(["https://api.lab"])
+    full = {c["name"] for r in dispatch_apps(apps, rep, mode="redteam") for c in r["checks"]}
+    vapt = {c["name"] for r in dispatch_apps(apps, rep, mode="vapt") for c in r["checks"]}
+    assert "Injection" in full and "Injection" not in vapt            # intrusive hidden in VAPT
+    assert "BOLA (object-level authz)" in vapt                        # safe shown
+
+
+def test_dispatch_routes_web_and_api():
+    rep = _report()
+    mods = dispatch(rep, mode="redteam", app_targets=app_targets(rep, api=["https://api.lab"]))
+    kinds = {m["module"] for m in mods}
+    assert "web_app" in kinds and "api" in kinds           # both AppSec modules dispatched

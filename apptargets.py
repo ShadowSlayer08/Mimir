@@ -64,10 +64,15 @@ def parse_web(values):
     return out
 
 
-def app_targets(report, web=()):
-    """Combined, de-duplicated application targets (auto-promoted + operator-supplied)."""
+def parse_api(values):
+    """Operator-supplied API targets (`--api URL`) — same URL parsing as web, kind=api."""
+    return [dict(t, kind="api") for t in parse_web(values)]
+
+
+def app_targets(report, web=(), api=()):
+    """Combined, de-duplicated application targets (auto-promoted web + operator web/API)."""
     seen, out = set(), []
-    for t in web_targets_from_report(report) + parse_web(web):
+    for t in web_targets_from_report(report) + parse_web(web) + parse_api(api):
         key = (t["kind"], t["scheme"], t["host"].lower(), t["port"])   # normalised identity
         if key in seen:
             continue

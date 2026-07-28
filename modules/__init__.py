@@ -278,15 +278,17 @@ def dispatch_apps(app_targets, report, mode=None, docs_dir=None):
     Staging only; intrusive checks are mode-filtered like the host modules."""
     from collections import defaultdict
     from .web_app import WebAppModule
+    from .api import APIModule
     by_host = defaultdict(list)
     for f in report.get("findings", []):
         by_host[f["host"]].append(f)
-    wm = WebAppModule(docs_dir)
+    handlers = {"web": WebAppModule(docs_dir), "api": APIModule(docs_dir)}
     results = []
     for t in (app_targets or []):
-        if t.get("kind") == "web":
+        h = handlers.get(t.get("kind"))
+        if h:
             results += [r.to_dict() if isinstance(r, ModuleResult) else r
-                        for r in wm.assess_target(t, by_host.get(t.get("host"), []))]
+                        for r in h.assess_target(t, by_host.get(t.get("host"), []))]
     return _apply_mode(results, mode)
 
 
