@@ -128,3 +128,28 @@ def test_dispatch_routes_web_and_api():
     mods = dispatch(rep, mode="redteam", app_targets=app_targets(rep, api=["https://api.lab"]))
     kinds = {m["module"] for m in mods}
     assert "web_app" in kinds and "api" in kinds           # both AppSec modules dispatched
+
+
+def test_mobile_and_thick_targets_and_modules():
+    from apptargets import parse_mobile, parse_thick
+    from modules.mobile import MobileModule
+    from modules.thick_client import ThickClientModule
+    m = parse_mobile(["/tmp/app.apk"])[0]
+    assert m["kind"] == "mobile" and m["platform"] == "android" and m["host"] == "app.apk"
+    assert parse_mobile(["Payload.ipa"])[0]["platform"] == "ios"    # extension -> platform
+    mr = MobileModule().assess_target(m, [])[0].to_dict()
+    assert mr["module"] == "mobile" and any(c["owasp"].startswith("MASVS") for c in mr["checks"])
+    t = parse_thick(["C:/apps/client.exe"])[0]
+    assert t["kind"] == "thick" and t["host"] == "client.exe"
+    tr = ThickClientModule().assess_target(t, [])[0].to_dict()
+    assert tr["module"] == "thick" and all(c["attack"] for c in tr["checks"])   # CWE-mapped, ATT&CK-tagged
+
+
+def test_mobile_thick_intrusive_muting_and_dispatch():
+    from modules import dispatch_apps
+    rep = {"hosts": [], "findings": []}
+    apps = app_targets(rep, mobile=["/tmp/a.apk"], thick=["/tmp/c.exe"])
+    assert {"mobile", "thick"} <= {r["module"] for r in dispatch_apps(apps, rep, mode="redteam")}
+    vnames = {c["name"] for r in dispatch_apps(apps, rep, mode="vapt") for c in r["checks"]}
+    rnames = {c["name"] for r in dispatch_apps(apps, rep, mode="redteam") for c in r["checks"]}
+    assert "Dynamic instrumentation" in rnames and "Dynamic instrumentation" not in vnames  # frida intrusive

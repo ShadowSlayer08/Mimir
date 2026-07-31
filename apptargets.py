@@ -13,6 +13,7 @@ parallel with the host modules. Methodology + staging only.
 """
 from __future__ import annotations
 
+import os
 import re
 
 _WEB_SERVICES = ("http", "https", "http-alt", "http-proxy", "www", "soap")
@@ -69,11 +70,38 @@ def parse_api(values):
     return [dict(t, kind="api") for t in parse_web(values)]
 
 
-def app_targets(report, web=(), api=()):
-    """Combined, de-duplicated application targets (auto-promoted web + operator web/API)."""
+def _file_targets(values, kind):
+    """Operator-supplied FILE targets: mobile (APK/IPA) or thick-client binary."""
+    out = []
+    for v in (values or []):
+        for p in re.split(r"[,\s]+", str(v).strip()):
+            if not p:
+                continue
+            base = os.path.basename(p.rstrip("/\\")) or p
+            t = {"kind": kind, "ref": p, "label": base, "host": base, "app": p, "source": "operator"}
+            if kind == "mobile":
+                t["platform"] = "ios" if p.lower().endswith(".ipa") else "android"
+            out.append(t)
+    return out
+
+
+def parse_mobile(values):
+    return _file_targets(values, "mobile")
+
+
+def parse_thick(values):
+    return _file_targets(values, "thick")
+
+
+def app_targets(report, web=(), api=(), mobile=(), thick=()):
+    """Combined, de-duplicated application targets (auto-promoted web + operator inputs)."""
     seen, out = set(), []
-    for t in web_targets_from_report(report) + parse_web(web) + parse_api(api):
-        key = (t["kind"], t["scheme"], t["host"].lower(), t["port"])   # normalised identity
+    for t in (web_targets_from_report(report) + parse_web(web) + parse_api(api)
+              + parse_mobile(mobile) + parse_thick(thick)):
+        if t["kind"] in ("mobile", "thick"):
+            key = (t["kind"], t.get("ref", "").lower())                 # distinct files by path
+        else:
+            key = (t["kind"], t["scheme"], t["host"].lower(), t["port"])
         if key in seen:
             continue
         seen.add(key)

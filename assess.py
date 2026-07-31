@@ -526,6 +526,10 @@ def build_parser():
     ap.add_argument("--api", action="append", default=[],
                     help="API target URL for OWASP API Security Top 10 methodology "
                          "(repeatable; REST/GraphQL).")
+    ap.add_argument("--mobile", action="append", default=[],
+                    help="mobile app file (APK/IPA) for OWASP MASVS methodology (repeatable).")
+    ap.add_argument("--thick", action="append", default=[],
+                    help="thick-client binary (exe/jar/native) for desktop-app review (repeatable).")
     ap.add_argument("--report", dest="report_out",
                     help="write an engagement report (.md or .html by extension)")
     ap.add_argument("--navigator", dest="navigator_out",
@@ -801,7 +805,7 @@ def main(argv=None):
     # Stage 3 — possible pentesting
     banner("Stage 3 — Possible pentesting (per-service methodology)")
     from apptargets import app_targets as _app_targets
-    apps = _app_targets(report, web=args.web, api=args.api)
+    apps = _app_targets(report, web=args.web, api=args.api, mobile=args.mobile, thick=args.thick)
     if apps:
         srcs = ", ".join(t["ref"] for t in apps[:6]) + (" ..." if len(apps) > 6 else "")
         print(C.dim(f"  {len(apps)} application target(s) for AppSec methodology: {srcs}"))

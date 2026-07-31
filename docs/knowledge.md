@@ -19,6 +19,8 @@ Each file below carries a fenced ```yaml block the loader merges:
 | `risk_scoring.md` | CVSS+EPSS+Exposure+Business weights, bands, KEV override; live EPSS/KEV via `enrich.py` (`--enrich`) | risk model |
 | `appsec/web.md` | OWASP-WSTG web-app methodology (target-driven; checks carry OWASP+CWE) | web_app module |
 | `appsec/api.md` | OWASP API Security Top 10 methodology (REST/GraphQL; target-driven) | api module |
+| `appsec/mobile.md` | OWASP MASVS/MASTG mobile-app methodology (APK/IPA; target-driven) | mobile module |
+| `appsec/thick.md` | thick-client / desktop-binary methodology (CWE-mapped; target-driven) | thick module |
 | `appsec/arsenal.md` | AppSec tool arsenal (WebHackersWeapons) per WSTG phase | web_app methodology (reference) |
 | `modules/web.md` | HTTP/HTTPS methodology (checks, attack surface) | web module |
 | `modules/smb.md` | SMB methodology | smb module |

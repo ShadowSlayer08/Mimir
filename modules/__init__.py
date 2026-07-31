@@ -279,10 +279,13 @@ def dispatch_apps(app_targets, report, mode=None, docs_dir=None):
     from collections import defaultdict
     from .web_app import WebAppModule
     from .api import APIModule
+    from .mobile import MobileModule
+    from .thick_client import ThickClientModule
     by_host = defaultdict(list)
     for f in report.get("findings", []):
         by_host[f["host"]].append(f)
-    handlers = {"web": WebAppModule(docs_dir), "api": APIModule(docs_dir)}
+    handlers = {"web": WebAppModule(docs_dir), "api": APIModule(docs_dir),
+                "mobile": MobileModule(docs_dir), "thick": ThickClientModule(docs_dir)}
     results = []
     for t in (app_targets or []):
         h = handlers.get(t.get("kind"))
