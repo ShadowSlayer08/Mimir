@@ -153,3 +153,26 @@ def test_mobile_thick_intrusive_muting_and_dispatch():
     vnames = {c["name"] for r in dispatch_apps(apps, rep, mode="vapt") for c in r["checks"]}
     rnames = {c["name"] for r in dispatch_apps(apps, rep, mode="redteam") for c in r["checks"]}
     assert "Dynamic instrumentation" in rnames and "Dynamic instrumentation" not in vnames  # frida intrusive
+
+
+def test_cloud_targets_and_provider_scoping():
+    from apptargets import parse_cloud
+    from modules.cloud import CloudModule
+    t = parse_cloud(["aws:123456789012", "azure", "notacloud"])
+    assert {x["provider"] for x in t} == {"aws", "azure"}          # unknown provider dropped
+    aws = CloudModule().assess_target(
+        {"kind": "cloud", "provider": "aws", "ref": "aws", "account": "1"}, [])[0].to_dict()
+    names = {c["name"] for c in aws["checks"]}
+    assert "AWS posture scan" in names                            # aws-scoped shown
+    assert "GCP posture scan" not in names                        # gcp-scoped hidden for aws
+    assert "Public cloud asset discovery" in names                # cross-provider (always)
+    assert all(c["attack"] for c in aws["checks"])                # ATT&CK-Cloud tagged
+
+
+def test_cloud_intrusive_hidden_and_dispatch():
+    from modules import dispatch_apps
+    rep = {"hosts": [], "findings": []}
+    apps = app_targets(rep, cloud=["aws"])
+    assert any(r["module"] == "cloud" for r in dispatch_apps(apps, rep, mode="redteam"))
+    vn = {c["name"] for r in dispatch_apps(apps, rep, mode="vapt") for c in r["checks"]}
+    assert "Credential / role abuse" not in vn                    # intrusive hidden in VAPT

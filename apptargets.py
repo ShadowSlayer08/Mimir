@@ -93,13 +93,29 @@ def parse_thick(values):
     return _file_targets(values, "thick")
 
 
-def app_targets(report, web=(), api=(), mobile=(), thick=()):
+def parse_cloud(values):
+    """Operator cloud targets: --cloud aws|azure|gcp[:account]."""
+    out = []
+    for v in (values or []):
+        for tok in re.split(r"[,\s]+", str(v).strip()):
+            if not tok:
+                continue
+            prov, _, ident = tok.partition(":")
+            prov = prov.lower()
+            if prov not in ("aws", "azure", "gcp"):
+                continue
+            out.append({"kind": "cloud", "provider": prov, "ref": tok, "label": tok,
+                        "host": ident or prov, "account": ident, "source": "operator"})
+    return out
+
+
+def app_targets(report, web=(), api=(), mobile=(), thick=(), cloud=()):
     """Combined, de-duplicated application targets (auto-promoted web + operator inputs)."""
     seen, out = set(), []
     for t in (web_targets_from_report(report) + parse_web(web) + parse_api(api)
-              + parse_mobile(mobile) + parse_thick(thick)):
-        if t["kind"] in ("mobile", "thick"):
-            key = (t["kind"], t.get("ref", "").lower())                 # distinct files by path
+              + parse_mobile(mobile) + parse_thick(thick) + parse_cloud(cloud)):
+        if t["kind"] in ("mobile", "thick", "cloud"):
+            key = (t["kind"], t.get("ref", "").lower())                 # distinct by path/provider
         else:
             key = (t["kind"], t["scheme"], t["host"].lower(), t["port"])
         if key in seen:

@@ -530,6 +530,8 @@ def build_parser():
                     help="mobile app file (APK/IPA) for OWASP MASVS methodology (repeatable).")
     ap.add_argument("--thick", action="append", default=[],
                     help="thick-client binary (exe/jar/native) for desktop-app review (repeatable).")
+    ap.add_argument("--cloud", action="append", default=[],
+                    help="cloud target: aws|azure|gcp[:account] for ATT&CK-Cloud methodology (repeatable).")
     ap.add_argument("--bloodhound",
                     help="BloodHound/SoapHound/RustHound export (zip/dir/json) -> staged AD paths")
     ap.add_argument("--owned", action="append", default=[],
@@ -809,7 +811,8 @@ def main(argv=None):
     # Stage 3 — possible pentesting
     banner("Stage 3 — Possible pentesting (per-service methodology)")
     from apptargets import app_targets as _app_targets
-    apps = _app_targets(report, web=args.web, api=args.api, mobile=args.mobile, thick=args.thick)
+    apps = _app_targets(report, web=args.web, api=args.api, mobile=args.mobile,
+                        thick=args.thick, cloud=args.cloud)
     if apps:
         srcs = ", ".join(t["ref"] for t in apps[:6]) + (" ..." if len(apps) > 6 else "")
         print(C.dim(f"  {len(apps)} application target(s) for AppSec methodology: {srcs}"))
