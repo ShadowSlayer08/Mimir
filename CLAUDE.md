@@ -37,6 +37,7 @@ apptargets.py                 AppSec: web-app targets (auto-promote http/https +
 pentest_console.py            PySide6 console: Attack Paths + Modules tabs + staging queue
 attack_dashboard.py / red_engine.py   target-acquisition dashboard + single GUI entry (.exe)
 webapi.py                     read-only REST API + web GUI over the --emit-json contract (redengine-web)
+ad_graph.py                   ingest BloodHound/SoapHound/RustHound -> AD graph -> staged paths (redengine-adgraph)
 knowledge_loader.py           parses docs/ yaml knowledge blocks
 validate_kb.py                knowledge-base integrity check (CI)
 modules/                      generic doc-backed dispatcher + per-service fallbacks
@@ -65,6 +66,9 @@ python build_app.py                                    # RedEngine.exe | RedEngi
 # Engagement JSON contract (feeds the read-only flutter/ desktop viewer)
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes --emit-json eng.json
 python webapi.py eng.json                              # read-only REST API + web GUI (redengine-web)
+# AD attack-path graph (operator collects with BloodHound/SoapHound/RustHound; engine ingests + stages)
+python ad_graph.py bloodhound.zip --owned "DOMAIN USERS@DOMAIN"          # staged priv-esc paths to DA
+python assess.py --from-xml tests/fixtures/full_scan.xml --yes --bloodhound bloodhound.zip  # merge AD paths
 # Live risk enrichment + per-asset scoring + engagement ledger (run diff + triage)
 python enrich.py                                       # cache/summarise CISA-KEV + FIRST-EPSS
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes --enrich --ledger eng.db

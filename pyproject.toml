@@ -47,6 +47,7 @@ redengine = "red_engine:main"
 redengine-cli = "assess:main"
 redengine-scan = "nmap_analyzer:main"
 redengine-web = "webapi:main"
+redengine-adgraph = "ad_graph:main"
 
 # Flat layout: enumerate every shipped top-level module explicitly, plus the
 # modules/ code package and the docs/ knowledge base as importable DATA
@@ -73,6 +74,7 @@ py-modules = [
     "findings",
     "apptargets",
     "webapi",
+    "ad_graph",
     "ciphers",
     "ciphers_v4",
     "validate_kb",

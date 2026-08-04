@@ -530,6 +530,10 @@ def build_parser():
                     help="mobile app file (APK/IPA) for OWASP MASVS methodology (repeatable).")
     ap.add_argument("--thick", action="append", default=[],
                     help="thick-client binary (exe/jar/native) for desktop-app review (repeatable).")
+    ap.add_argument("--bloodhound",
+                    help="BloodHound/SoapHound/RustHound export (zip/dir/json) -> staged AD paths")
+    ap.add_argument("--owned", action="append", default=[],
+                    help="owned starting principal for the AD graph (name or SID; repeatable)")
     ap.add_argument("--report", dest="report_out",
                     help="write an engagement report (.md or .html by extension)")
     ap.add_argument("--navigator", dest="navigator_out",
@@ -852,6 +856,16 @@ def main(argv=None):
     # Stage 4 — exploitation handoff
     banner("Stage 4 — Exploitation handoff (staged operator queue)")
     paths = generate_paths(report)
+    if args.bloodhound:
+        try:
+            from ad_graph import ingest as _bh_ingest
+            _g, _adp = _bh_ingest(args.bloodhound, args.owned or ())
+            paths += _adp
+            print(C.grn(f"[+] AD graph: {len(_adp)} staged privilege path(s) from "
+                        f"{os.path.basename(args.bloodhound)} ({len(_g.nodes)} nodes, "
+                        f"{len(_g.high)} high-value)"))
+        except Exception as e:                                         # pragma: no cover
+            print(C.ylw(f"  [bloodhound] ingest failed: {e}"))
     print_attack_paths(paths)
 
     # Kill-chain coverage view (recon -> actions on objectives; staging only)
