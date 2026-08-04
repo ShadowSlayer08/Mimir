@@ -146,12 +146,16 @@ td{padding:6px 8px;border-top:1px solid var(--line)}.pill{padding:1px 7px;border
 button.copy{background:transparent;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:3px 9px;cursor:pointer;font-size:12px}
 .grade{display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:5px;font-weight:600}
 .sev-critical{color:#e5484d}.sev-high{color:#f76808}.sev-medium{color:#ffb224}.sev-low{color:#8b95a5}.sev-info{color:#4c8dff}
+.chain{display:flex;flex-wrap:wrap;align-items:center;gap:3px}
+.gnode{padding:4px 9px;border-radius:6px;border:1px solid var(--line);font-size:12px;font-weight:600;background:var(--card);color:var(--txt)}
+.gnode.start{background:rgba(76,141,255,.18);color:#4c8dff}.gnode.hi{background:rgba(229,72,77,.18);color:#e5484d}
+.arrow{display:inline-flex;flex-direction:column;align-items:center;color:var(--dim);line-height:1.1}.elabel{font-size:9px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style></head><body>
 <header><h1>redengine</h1><span id="meta" class="dim"></span></header>
 <div class="banner">Read-only viewer — displays a staged engagement and copies commands. It executes nothing.</div>
 <main>
   <div class="cards" id="cards"></div>
-  <div class="tabs"><button data-t="dash" class="on">Dashboard</button><button data-t="find">Findings</button><button data-t="paths">Attack paths</button></div>
+  <div class="tabs"><button data-t="dash" class="on">Dashboard</button><button data-t="find">Findings</button><button data-t="paths">Attack paths</button><button data-t="graph">Graph</button></div>
   <div id="view"></div>
 </main>
 <script>
@@ -170,7 +174,8 @@ async function load(){E=await (await fetch('/api/engagement')).json();const m=E.
 function render(){const v=document.getElementById('view');
   if(tab==='dash')v.innerHTML=hostsTable();
   else if(tab==='find')v.innerHTML=findTable();
-  else v.innerHTML=pathsView();
+  else if(tab==='paths')v.innerHTML=pathsView();
+  else v.innerHTML=chainView();
   v.querySelectorAll('button.copy').forEach(b=>b.onclick=()=>{navigator.clipboard.writeText(b.dataset.cmd);b.textContent='copied';setTimeout(()=>b.textContent='Copy command',1200)});}
 function hostsTable(){const h=E.hosts||[];if(!h.length)return '<p class=dim>No hosts.</p>';
   return '<div class=card><table><tr><th>Grade</th><th>Host</th><th>IP</th><th>Device class</th><th>OS</th><th>Ports</th><th>Findings</th></tr>'
@@ -188,6 +193,13 @@ function pathsView(){const p=E.attack_paths||[];if(!p.length)return '<p class=di
    +(a.steps||[]).map(s=>`<div class=step><b>${s.order}. ${esc(s.tactic)}</b> <span style=color:#ffc14a>${esc(s.technique_id)}</span> ${esc(s.technique)} @ ${esc(s.host)}
      ${s.command?`<div style="display:flex;gap:8px;margin-top:6px;align-items:center"><div class=mono style=flex:1>${esc(s.command)}</div><button class=copy data-cmd="${esc(s.command)}">Copy command</button></div>`:''}</div>`).join('')
    +'</div>').join('');}
+function chainView(){const p=E.attack_paths||[];if(!p.length)return '<p class=dim>No attack paths.</p>';
+  return p.map(a=>{const st=a.steps||[];
+    const start=(a.hosts&&a.hosts[0])||(st[0]&&(st[0].src||st[0].host))||'start';
+    let h=`<div class=card><div style="margin-bottom:8px"><span class=pill style="background:#8b95a522">${esc(a.id)}</span> <b class="sev-${a.severity}">${esc(a.name)}</b> <span class=dim>· ${esc(a.kind)}</span></div><div class=chain><span class="gnode start">${esc(start)}</span>`;
+    st.forEach((s,i)=>{const lbl=s.edge||s.technique_id||'';const hi=(i===st.length-1)&&(a.kind==='domain'||a.severity==='critical');
+      h+=`<span class=arrow><span class=elabel>${esc(lbl)}</span>&#9654;</span><span class="gnode ${hi?'hi':'mid'}">${esc(s.dst||s.host||'?')}</span>`;});
+    return h+'</div></div>';}).join('');}
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));render()});
 load().catch(e=>document.getElementById('view').innerHTML='<p class=sev-critical>Failed to load: '+esc(e)+'</p>');

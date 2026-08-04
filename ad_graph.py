@@ -254,7 +254,8 @@ def derive_paths(graph, max_paths=25):
             sname = graph.nodes.get(src, {}).get("name", src)
             steps.append({
                 "order": order, "tactic": tactic, "technique_id": tid, "technique": tname,
-                "host": dname, "basis": f"{sname} --{et}--> {dname}", "guidance": how,
+                "host": dname, "src": sname, "edge": et,
+                "basis": f"{sname} --{et}--> {dname}", "guidance": how,
                 "abuse": {"impact": impact or f"Gain control of {dname}.", "how": how, "opsec": opsec}})
         start = graph.nodes.get(ep[0][0], {}).get("name", ep[0][0])
         end = graph.nodes.get(ep[-1][2], {}).get("name", ep[-1][2])

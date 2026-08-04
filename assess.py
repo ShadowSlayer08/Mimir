@@ -692,7 +692,7 @@ def build_engagement_json(report, mods, paths, scan_meta):
                 "order": s.get("order", i), "tactic": s.get("tactic", ""),
                 "technique_id": s.get("technique_id", ""), "technique": s.get("technique", ""),
                 "host": s.get("host", ""), "basis": s.get("basis", ""),
-                "guidance": s.get("guidance", ""), "command": command,
+                "edge": s.get("edge", ""), "guidance": s.get("guidance", ""), "command": command,
                 "abuse": {"impact": abuse.get("impact", ""), "how": abuse.get("how", ""),
                           "opsec": abuse.get("opsec", "")},
             })
