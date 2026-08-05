@@ -155,7 +155,7 @@ button.copy{background:transparent;border:1px solid var(--line);color:var(--txt)
 <div class="banner">Read-only viewer — displays a staged engagement and copies commands. It executes nothing.</div>
 <main>
   <div class="cards" id="cards"></div>
-  <div class="tabs"><button data-t="dash" class="on">Dashboard</button><button data-t="find">Findings</button><button data-t="paths">Attack paths</button><button data-t="graph">Graph</button></div>
+  <div class="tabs"><button data-t="dash" class="on">Dashboard</button><button data-t="reco">Next actions</button><button data-t="find">Findings</button><button data-t="paths">Attack paths</button><button data-t="graph">Graph</button></div>
   <div id="view"></div>
 </main>
 <script>
@@ -173,6 +173,7 @@ async function load(){E=await (await fetch('/api/engagement')).json();const m=E.
   render();}
 function render(){const v=document.getElementById('view');
   if(tab==='dash')v.innerHTML=hostsTable();
+  else if(tab==='reco')v.innerHTML=recoView();
   else if(tab==='find')v.innerHTML=findTable();
   else if(tab==='paths')v.innerHTML=pathsView();
   else v.innerHTML=chainView();
@@ -193,6 +194,11 @@ function pathsView(){const p=E.attack_paths||[];if(!p.length)return '<p class=di
    +(a.steps||[]).map(s=>`<div class=step><b>${s.order}. ${esc(s.tactic)}</b> <span style=color:#ffc14a>${esc(s.technique_id)}</span> ${esc(s.technique)} @ ${esc(s.host)}
      ${s.command?`<div style="display:flex;gap:8px;margin-top:6px;align-items:center"><div class=mono style=flex:1>${esc(s.command)}</div><button class=copy data-cmd="${esc(s.command)}">Copy command</button></div>`:''}</div>`).join('')
    +'</div>').join('');}
+function recoView(){const r=E.recommendations||[];if(!r.length)return '<p class=dim>No recommendations.</p>';
+  return '<p class=dim style="margin-top:0">Ranked by impact x confidence x objective-proximity x low-effort. Run in scope.</p>'+
+   r.map(a=>`<div class=card><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span class=pill style="background:#4c8dff22;color:#4c8dff">#${a.rank}</span><span class=pill style="background:#8b95a522">score ${esc(a.score)}</span><span class=pill style="background:#8b95a522">${esc(a.category)}</span><b>${esc(a.title)}</b></div>
+    <div class=dim style="margin-top:4px">${esc(a.why)}</div>
+    ${a.command?`<div style="display:flex;gap:8px;margin-top:8px;align-items:center"><div class=mono style=flex:1>${esc(a.command)}</div><button class=copy data-cmd="${esc(a.command)}">Copy command</button></div>`:''}</div>`).join('');}
 function chainView(){const p=E.attack_paths||[];if(!p.length)return '<p class=dim>No attack paths.</p>';
   return p.map(a=>{const st=a.steps||[];
     const start=(a.hosts&&a.hosts[0])||(st[0]&&(st[0].src||st[0].host))||'start';

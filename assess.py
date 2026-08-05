@@ -42,6 +42,7 @@ from modules import dispatch
 from attack_path_engine import generate_paths
 from profiles import get_profile, MODES, DEFAULT_MODE
 from evidence import ingest_dir
+from copilot import recommend as _cp_recommend
 
 # Safe, detection-only default script set. No dos / brute / broad-vuln categories.
 # (Kept for back-compat; canonical per-mode sets live in profiles.py.)
@@ -732,6 +733,7 @@ def build_engagement_json(report, mods, paths, scan_meta):
         },
         "hosts": hosts, "findings": findings, "attack_paths": attack_paths,
         "killchain": {"stages": stages},
+        "recommendations": _cp_recommend(findings, attack_paths),
     }
 
 
@@ -900,6 +902,13 @@ def main(argv=None):
         with open(args.json_out, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
         print(C.grn(f"[+] JSON written: {args.json_out}"))
+
+    recs = _cp_recommend(report.get("findings", []), paths)
+    if recs:
+        print(C.bold("\n  Recommended next actions (co-pilot):"))
+        for a in recs[:5]:
+            print(f"    #{a['rank']} [{a['score']:>3}] {C.bold(a['title'])}  ({a['category']})")
+            print(C.dim(f"        {a['why']}"))
 
     scan_meta = {"mode": args.mode, "from_xml": args.from_xml, "from_dir": args.from_dir,
                  "target": targets[0][0] if targets else ""}
