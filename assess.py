@@ -537,6 +537,11 @@ def build_parser():
                     help="BloodHound/SoapHound/RustHound export (zip/dir/json) -> staged AD paths")
     ap.add_argument("--owned", action="append", default=[],
                     help="owned starting principal for the AD graph (name or SID; repeatable)")
+    ap.add_argument("--domain", help="AD/DNS domain to fill into staged commands (else inferred)")
+    ap.add_argument("--user", help="username to fill into staged commands (non-secret)")
+    ap.add_argument("--dc", help="domain-controller host/IP to fill into staged commands")
+    ap.add_argument("--ctx", action="append", default=[],
+                    help="extra context k=v filled as <k> in commands, e.g. --ctx listener=10.0.0.5 (repeatable)")
     ap.add_argument("--report", dest="report_out",
                     help="write an engagement report (.md or .html by extension)")
     ap.add_argument("--navigator", dest="navigator_out",
@@ -902,6 +907,14 @@ def main(argv=None):
         with open(args.json_out, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
         print(C.grn(f"[+] JSON written: {args.json_out}"))
+
+    from context import infer as _infer_ctx, apply as _apply_ctx
+    _ctx = _infer_ctx(report, {"domain": args.domain, "user": args.user, "dc": args.dc,
+                               **dict(kv.split("=", 1) for kv in args.ctx if "=" in kv)})
+    if _ctx:
+        _apply_ctx(mods, paths, _ctx)
+        print(C.dim("  context filled into staged commands: "
+                    + ", ".join(f"{k}={v}" for k, v in _ctx.items())))
 
     recs = _cp_recommend(report.get("findings", []), paths)
     if recs:
