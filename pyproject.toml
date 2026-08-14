@@ -82,6 +82,7 @@ py-modules = [
     "context",
     "llm",
     "advisor",
+    "qualia",
     "mcp_server",
     "ciphers",
     "ciphers_v4",

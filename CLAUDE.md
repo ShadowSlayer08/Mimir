@@ -38,8 +38,9 @@ pentest_console.py            PySide6 console: Attack Paths + Modules tabs + sta
 attack_dashboard.py / red_engine.py   target-acquisition dashboard + single GUI entry (.exe)
 webapi.py                     read-only REST API + web GUI over the --emit-json contract (redengine-web)
 ad_graph.py                   ingest BloodHound/SoapHound/RustHound -> AD graph -> staged paths (redengine-adgraph)
-copilot.py                    engagement co-pilot: rank next-best actions + score trace (redengine-copilot)
+copilot.py                    engagement co-pilot: LLM-first ranking + score trace (redengine-copilot)
 llm.py                        optional LOCAL LLM layer (Ollama); offline-safe, cloud models excluded
+qualia.py                     LLM-first qualitative decisions with deterministic fallback (every judgment call routes here)
 advisor.py                    local-LLM co-pilot: Planner/Narrator/Adviser — full tradecraft (redengine-advisor)
 mcp_server.py                 read-only MCP server over an engagement (redengine-mcp); query-only
 knowledge_loader.py           parses docs/ yaml knowledge blocks

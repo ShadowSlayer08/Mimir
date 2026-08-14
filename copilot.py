@@ -6,15 +6,19 @@ Authorized / lab / CTF use only.
 
 Turns the engine's output (findings + staged attack paths) into a ranked
 "do these first" list, so an operator facing dozens of hosts and hundreds of
-staged steps knows where the leverage is. Pure ranking over already-computed data
-— it recommends and orders; the human still runs every step, in scope. Staging only.
+staged steps knows where the leverage is.
 
-Score (0-100) blends: impact (severity), confidence, objective-proximity (does it
-reach a high-value target / domain?), and low-effort/low-noise (fewer steps, safe).
+LLM-first with deterministic fallback: when a LOCAL Ollama model is reachable the
+ranking is decided by the model (senior-consultant reasoning over the full context),
+via `qualia.decide()`. When Ollama is offline, or the model returns an invalid shape,
+the deterministic weighted score below is used — the engine still works airgapped.
+Every action carries a `trace` explaining why it was ranked; `--why` prints it.
 
     python copilot.py engagement.json            # ranked next actions from an --emit-json export
 """
 from __future__ import annotations
+
+import qualia
 
 _SEV = {"critical": 100, "high": 75, "medium": 45, "low": 20, "info": 5}
 _CONF = {"high": 100, "medium": 60, "low": 30}
@@ -82,8 +86,8 @@ def _from_finding(f):
             "trace": _trace(fw, comp, f"confirmed {sev} exposure on {tgt} -> likely direct foothold")}
 
 
-def recommend(findings, paths, top=12):
-    """Ranked next-best-action list from the current engagement state (deterministic)."""
+def _deterministic_recommend(findings, paths, top=12):
+    """Weighted-score ranking (the offline fallback). Same shape as `recommend`."""
     actions = [_from_path(p) for p in (paths or [])]
     actions += [a for a in (_from_finding(f) for f in (findings or [])) if a]
     actions.sort(key=lambda a: (-a["score"], a["category"], a["title"]))
@@ -97,6 +101,99 @@ def recommend(findings, paths, top=12):
         if len(out) >= top:
             break
     return out
+
+
+# ---- LLM-first ranking ---------------------------------------------------- #
+def _candidate_pool(findings, paths):
+    """Build the candidate action pool the LLM ranks. Same builder as the
+    deterministic branch — the LLM decides the ORDER, not the candidate set."""
+    pool = [_from_path(p) for p in (paths or [])]
+    pool += [a for a in (_from_finding(f) for f in (findings or [])) if a]
+    # dedup on the same key the deterministic branch uses
+    out, seen = [], set()
+    for a in pool:
+        key = (a["category"], a["title"], a["source"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(a)
+    return out
+
+
+def _rank_prompt(pool, top):
+    """Ask the local model to re-rank the pool by objective-proximity, confidence
+    and blast radius, and to explain its reasoning for each action."""
+    cards = [{"i": i, "category": a["category"], "title": a["title"],
+              "why": a["why"], "attack": a.get("attack", ""),
+              "source": a.get("source", ""), "det_score": a["score"]}
+             for i, a in enumerate(pool)]
+    return (
+        f"Re-rank the following authorized-engagement action candidates. Return the "
+        f"top {top} in priority order for the operator. Prioritize objective proximity "
+        "(paths that reach a Domain Admin / high-value target rank first), then "
+        "confidence, then blast radius, then low effort. "
+        "Return JSON only: "
+        '{"ranked":[{"i":<original_index>,"score":<0-100>,"why":"<one-sentence rationale>"}]}\n\n'
+        + qualia.compact({"top": top, "candidates": cards})
+    )
+
+
+def _valid_ranking(out, pool, top):
+    """Structural + semantic validation. Reject anything that would hurt callers."""
+    if not isinstance(out, dict):
+        return False
+    r = out.get("ranked")
+    if not isinstance(r, list) or not r:
+        return False
+    seen = set()
+    for item in r[:top]:
+        if not isinstance(item, dict):
+            return False
+        i = item.get("i")
+        if not isinstance(i, int) or not (0 <= i < len(pool)) or i in seen:
+            return False
+        seen.add(i)
+    return True
+
+
+def _apply_ranking(pool, ranking, top):
+    """Materialise the LLM ordering back onto the pool actions."""
+    out = []
+    for rank, item in enumerate(ranking["ranked"][:top], 1):
+        base = dict(pool[item["i"]])
+        try:
+            s = int(item.get("score", base["score"]))
+            base["score"] = max(0, min(100, s))
+        except (TypeError, ValueError):
+            pass                                                # keep deterministic score
+        why = str(item.get("why", "") or "").strip()
+        if why:
+            base["why"] = why[:400]
+        base["rank"] = rank
+        base["trace"] = {**(base.get("trace") or {}),
+                         "source": "llm", "kind": "rank-actions"}
+        out.append(base)
+    return out
+
+
+def recommend(findings, paths, top=12):
+    """Ranked next-best-action list. LLM-first via qualia; falls back to the
+    deterministic weighted ranker when Ollama is offline or returns bad output."""
+    pool = _candidate_pool(findings, paths)
+    if not pool:
+        return []
+    prompt = _rank_prompt(pool, top)
+
+    def _fallback():
+        return _deterministic_recommend(findings, paths, top)
+
+    result = qualia.decide(
+        "rank-actions", prompt, _fallback, role="adviser",
+        validator=lambda o: _valid_ranking(o, pool, top))
+    # If qualia returned a list, it's already the fallback's output — pass through.
+    if isinstance(result, list):
+        return result
+    return _apply_ranking(pool, result, top)
 
 
 def recommend_from_engagement(eng, top=12):
@@ -125,8 +222,12 @@ def main(argv=None):
             print(f"      run: {a['command']}")
         if args.why and a.get("trace"):
             t = a["trace"]
-            parts = ", ".join(f"{k} {v:g}" for k, v in t["contributions"].items())
-            print(f"      score: {parts}  ({t['basis']})")
+            src = t.get("source", "deterministic")
+            if t.get("contributions"):
+                parts = ", ".join(f"{k} {v:g}" for k, v in t["contributions"].items())
+                print(f"      score [{src}]: {parts}  ({t.get('basis','')})")
+            else:
+                print(f"      score [{src}]: model re-ranked")
     return 0
 
 

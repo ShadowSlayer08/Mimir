@@ -90,6 +90,34 @@ def build_killchain(report, modules, paths, docs_dir=None):
     return out
 
 
+def _stage_narrative(st, deterministic_objective):
+    """LLM-first per-stage prose (this engagement's *specific* posture at this stage);
+    falls back to the deterministic objective from the KB when Ollama is unavailable."""
+    try:
+        import qualia
+    except Exception:                                          # pragma: no cover
+        return deterministic_objective
+    n_steps = len(st.get("staged_steps", []) or [])
+    if not n_steps and not st.get("findings"):
+        return deterministic_objective                          # nothing engagement-specific to say
+    steps_digest = [{"tactic": s.get("tactic", ""), "tech": s.get("technique_id", ""),
+                     "host": s.get("host", ""), "path": s.get("path", "")}
+                    for s in (st.get("staged_steps") or [])[:12]]
+    prompt = (
+        f"Write ONE short sentence (max 40 words) describing THIS engagement's posture at "
+        f"kill-chain stage {st['id']} — {st['name']}. Ground it in the staged steps below; "
+        "do not invent details or list steps. No payloads.\n"
+        + qualia.compact({"stage": st["name"], "tactics": st.get("tactics", []),
+                          "step_count": n_steps, "steps": steps_digest})
+    )
+    # Deliberately use the FAST 7B (adviser role) — the narrator (27B) is minutes-slow
+    # and this is a one-sentence tagline, not the executive summary.
+    return qualia.prose("narrate-stage", prompt,
+                        fallback=lambda: deterministic_objective,
+                        role="adviser",
+                        options={"num_predict": 80})
+
+
 def build_markdown(report, modules, paths, docs_dir=None, scan=None):
     kc = build_killchain(report, modules, paths, docs_dir)
     L = ["# Kill-Chain Playbook\n"]
@@ -102,8 +130,9 @@ def build_markdown(report, modules, paths, docs_dir=None, scan=None):
     for st in kc:
         L.append(f"## Stage {st['id']} — {st['name']}")
         L.append(f"_Kill-chain: {', '.join(st['phases'])} · ATT&CK: {', '.join(st['tactics'])}_\n")
-        if st["objective"]:
-            L.append(st["objective"] + "\n")
+        narrative = _stage_narrative(st, st.get("objective", ""))
+        if narrative:
+            L.append(narrative + "\n")
         if st["methodology"]:
             L.append("**Methodology (operator references):**")
             for m in st["methodology"]:
