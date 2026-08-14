@@ -32,13 +32,24 @@ def _conf(c):
     return _CONF.get((c or "").lower(), 40)
 
 
+_PATH_W = {"impact": 0.40, "confidence": 0.25, "proximity": 0.25, "low_effort": 0.10}
+
+
+def _trace(weights, components, basis):
+    """Auditable score breakdown: the weighted contribution of each component."""
+    contrib = {k: round(weights[k] * components[k], 1) for k in weights}
+    return {"weights": weights, "components": {k: round(v) for k, v in components.items()},
+            "contributions": contrib, "basis": basis}
+
+
 def _from_path(p):
     steps = p.get("steps", []) or []
     kind = (p.get("kind") or "").lower()
     proximity = 100 if kind == "domain" else (82 if kind in ("rce", "rce_system", "webapp") else 62)
     low_effort = 100 - min(len(steps), 6) / 6 * 100
-    score = round(0.40 * _sev(p.get("severity")) + 0.25 * _conf(p.get("confidence"))
-                  + 0.25 * proximity + 0.10 * low_effort)
+    comp = {"impact": _sev(p.get("severity")), "confidence": _conf(p.get("confidence")),
+            "proximity": proximity, "low_effort": low_effort}
+    score = round(sum(_PATH_W[k] * comp[k] for k in _PATH_W))
     first = steps[0] if steps else {}
     cat = "objective" if kind == "domain" else ("foothold" if proximity >= 82 else "lateral")
     tail = (f" to {p['hosts'][-1]}" if p.get("hosts") else "")
@@ -47,7 +58,11 @@ def _from_path(p):
     return {"category": cat, "title": p.get("name") or p.get("id", "path"), "why": why,
             "command": first.get("command") or first.get("guidance") or "",
             "attack": first.get("technique_id", ""), "risk": "",
-            "source": p.get("id", ""), "score": score}
+            "source": p.get("id", ""), "score": score,
+            "trace": _trace(_PATH_W, comp,
+                            f"kind={kind or '?'}, {len(steps)} step(s); "
+                            f"proximity {proximity} (objective-nearness), "
+                            f"low-effort {round(low_effort)} (fewer steps = higher)")}
 
 
 def _from_finding(f):
@@ -57,11 +72,14 @@ def _from_finding(f):
     title = (f.get("title") or "").lower()
     if not (f.get("category") == "CVE (vulners)" or any(k in title for k in _FOOTHOLD)):
         return None
-    score = round(0.55 * _sev(sev) + 0.20 * 70 + 0.15 * 90 + 0.10 * 80)
+    fw = {"impact": 0.55, "confidence": 0.20, "proximity": 0.15, "low_effort": 0.10}
+    comp = {"impact": _sev(sev), "confidence": 70, "proximity": 90, "low_effort": 80}
+    score = round(sum(fw[k] * comp[k] for k in fw))
     tgt = f.get("host", "?") + (f":{f['port']}" if f.get("port") else "")
     return {"category": "quick-win", "title": f.get("title", ""),
             "why": f"Confirmed {sev} exposure on {tgt} - likely immediate foothold; validate in scope.",
-            "command": "", "attack": "T1190", "risk": "", "source": tgt, "score": score}
+            "command": "", "attack": "T1190", "risk": "", "source": tgt, "score": score,
+            "trace": _trace(fw, comp, f"confirmed {sev} exposure on {tgt} -> likely direct foothold")}
 
 
 def recommend(findings, paths, top=12):
@@ -93,6 +111,8 @@ def main(argv=None):
                                              "(assess --emit-json)")
     ap.add_argument("engagement", help="engagement JSON file")
     ap.add_argument("--top", type=int, default=10)
+    ap.add_argument("--why", action="store_true",
+                    help="show the score breakdown (weighted component contributions) per action")
     args = ap.parse_args(argv)
     with open(args.engagement, encoding="utf-8") as fh:
         eng = json.load(fh)
@@ -103,6 +123,10 @@ def main(argv=None):
         print(f"      why: {a['why']}")
         if a["command"]:
             print(f"      run: {a['command']}")
+        if args.why and a.get("trace"):
+            t = a["trace"]
+            parts = ", ".join(f"{k} {v:g}" for k, v in t["contributions"].items())
+            print(f"      score: {parts}  ({t['basis']})")
     return 0
 
 

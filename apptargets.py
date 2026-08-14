@@ -70,6 +70,16 @@ def parse_api(values):
     return [dict(t, kind="api") for t in parse_web(values)]
 
 
+def _thick_platform(p):
+    """Infer the desktop platform from a thick-client binary's extension."""
+    lp = p.lower()
+    if lp.endswith((".dmg", ".app", ".pkg", ".macho", ".dylib")):
+        return "macos"
+    if lp.endswith((".elf", ".so", ".bin", ".run", ".appimage", ".out")):
+        return "linux"
+    return "windows"                                          # .exe/.dll/.msi/.jar + default
+
+
 def _file_targets(values, kind):
     """Operator-supplied FILE targets: mobile (APK/IPA) or thick-client binary."""
     out = []
@@ -81,6 +91,8 @@ def _file_targets(values, kind):
             t = {"kind": kind, "ref": p, "label": base, "host": base, "app": p, "source": "operator"}
             if kind == "mobile":
                 t["platform"] = "ios" if p.lower().endswith(".ipa") else "android"
+            elif kind == "thick":
+                t["platform"] = _thick_platform(p)
             out.append(t)
     return out
 
@@ -109,15 +121,89 @@ def parse_cloud(values):
     return out
 
 
-def app_targets(report, web=(), api=(), mobile=(), thick=(), cloud=()):
+_WIFI_BANDS = ("wifi", "ble", "zigbee", "rf")
+
+
+def parse_wireless(values):
+    """Operator wireless targets: --wireless [wifi|ble|zigbee|rf|<ssid>]."""
+    out = []
+    for v in (values or []):
+        for tok in re.split(r"[,\s]+", str(v).strip()):
+            if not tok:
+                continue
+            low = tok.lower()
+            t = {"kind": "wireless", "ref": tok, "label": tok, "host": tok, "source": "operator"}
+            if low in _WIFI_BANDS:
+                t["band"] = low
+            else:
+                t["ssid"] = tok
+            out.append(t)
+    return out
+
+
+def parse_k8s(values):
+    """Operator Kubernetes targets: --k8s <cluster|kubeconfig|context>."""
+    out = []
+    for v in (values or []):
+        for tok in re.split(r"[,\s]+", str(v).strip()):
+            if tok:
+                out.append({"kind": "k8s", "ref": tok, "label": tok, "host": tok,
+                            "source": "operator"})
+    return out
+
+
+def parse_source(values):
+    """Operator source/supply-chain targets: --source <path|repo-url>."""
+    out = []
+    for v in (values or []):
+        for tok in re.split(r"[,\s]+", str(v).strip()):
+            if not tok:
+                continue
+            base = os.path.basename(tok.rstrip("/\\")) or tok
+            out.append({"kind": "source", "ref": tok, "label": base, "host": base,
+                        "source": "operator"})
+    return out
+
+
+def parse_identity(values):
+    """Operator SaaS-identity targets: --identity entra|m365|okta|gworkspace|adfs[:tenant]."""
+    out = []
+    for v in (values or []):
+        for tok in re.split(r"[,\s]+", str(v).strip()):
+            if not tok:
+                continue
+            prov, _, ident = tok.partition(":")
+            out.append({"kind": "identity", "provider": prov.lower(), "ref": tok, "label": tok,
+                        "tenant": ident, "domain": ident, "host": ident or prov.lower(),
+                        "source": "operator"})
+    return out
+
+
+def parse_hypervisor(values):
+    """Operator hypervisor targets: --hypervisor esxi|vcenter|proxmox|xen|hyperv[:host]."""
+    out = []
+    for v in (values or []):
+        for tok in re.split(r"[,\s]+", str(v).strip()):
+            if not tok:
+                continue
+            prov, _, ident = tok.partition(":")
+            out.append({"kind": "hypervisor", "provider": prov.lower(), "ref": tok, "label": tok,
+                        "host": ident or prov.lower(), "source": "operator"})
+    return out
+
+
+def app_targets(report, web=(), api=(), mobile=(), thick=(), cloud=(),
+                wireless=(), k8s=(), source=(), identity=(), hypervisor=()):
     """Combined, de-duplicated application targets (auto-promoted web + operator inputs)."""
     seen, out = set(), []
     for t in (web_targets_from_report(report) + parse_web(web) + parse_api(api)
-              + parse_mobile(mobile) + parse_thick(thick) + parse_cloud(cloud)):
-        if t["kind"] in ("mobile", "thick", "cloud"):
-            key = (t["kind"], t.get("ref", "").lower())                 # distinct by path/provider
-        else:
+              + parse_mobile(mobile) + parse_thick(thick) + parse_cloud(cloud)
+              + parse_wireless(wireless) + parse_k8s(k8s) + parse_source(source)
+              + parse_identity(identity) + parse_hypervisor(hypervisor)):
+        if t["kind"] in ("web", "api"):
             key = (t["kind"], t["scheme"], t["host"].lower(), t["port"])
+        else:
+            key = (t["kind"], t.get("ref", "").lower())                 # distinct by path/provider/token
         if key in seen:
             continue
         seen.add(key)

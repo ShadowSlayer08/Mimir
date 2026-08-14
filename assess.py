@@ -530,9 +530,21 @@ def build_parser():
     ap.add_argument("--mobile", action="append", default=[],
                     help="mobile app file (APK/IPA) for OWASP MASVS methodology (repeatable).")
     ap.add_argument("--thick", action="append", default=[],
-                    help="thick-client binary (exe/jar/native) for desktop-app review (repeatable).")
+                    help="thick-client binary (exe/dll/jar/ELF/.app/.dmg) for desktop-app review; "
+                         "platform (windows/linux/macos) inferred from extension (repeatable).")
     ap.add_argument("--cloud", action="append", default=[],
                     help="cloud target: aws|azure|gcp[:account] for ATT&CK-Cloud methodology (repeatable).")
+    ap.add_argument("--wireless", action="append", default=[],
+                    help="wireless/RF target: wifi|ble|zigbee|rf or an SSID (repeatable).")
+    ap.add_argument("--k8s", action="append", default=[],
+                    help="Kubernetes target: cluster endpoint / kubeconfig / context "
+                         "for ATT&CK-Containers methodology (repeatable).")
+    ap.add_argument("--source", action="append", default=[],
+                    help="source/supply-chain target: repo path or URL (SAST/secrets/SCA/SBOM) (repeatable).")
+    ap.add_argument("--identity", action="append", default=[],
+                    help="SaaS identity target: entra|m365|okta|gworkspace|adfs[:tenant] (repeatable).")
+    ap.add_argument("--hypervisor", action="append", default=[],
+                    help="hypervisor target: esxi|vcenter|proxmox|xen|hyperv[:host] (repeatable).")
     ap.add_argument("--bloodhound",
                     help="BloodHound/SoapHound/RustHound export (zip/dir/json) -> staged AD paths")
     ap.add_argument("--owned", action="append", default=[],
@@ -565,6 +577,12 @@ def build_parser():
                     help="parallel container workers for --run-containers (default 6)")
     ap.add_argument("--ledger", dest="ledger_db",
                     help="record this run into a persistent SQLite engagement ledger")
+    ap.add_argument("--llm", action="store_true",
+                    help="enable the LOCAL LLM co-pilot (Ollama): AI executive summary, adviser "
+                         "next-moves, and an AI operator playbook (concrete red-team tradecraft). "
+                         "Offline-safe; runs locally so engagement data stays on this machine.")
+    ap.add_argument("--llm-model", dest="llm_model", default=None,
+                    help="force a specific local Ollama model for the co-pilot (else auto-picked)")
     ap.add_argument("--yes", action="store_true",
                     help="assert authorization non-interactively (logged)")
     return ap
@@ -819,7 +837,9 @@ def main(argv=None):
     banner("Stage 3 — Possible pentesting (per-service methodology)")
     from apptargets import app_targets as _app_targets
     apps = _app_targets(report, web=args.web, api=args.api, mobile=args.mobile,
-                        thick=args.thick, cloud=args.cloud)
+                        thick=args.thick, cloud=args.cloud, wireless=args.wireless,
+                        k8s=args.k8s, source=args.source, identity=args.identity,
+                        hypervisor=args.hypervisor)
     if apps:
         srcs = ", ".join(t["ref"] for t in apps[:6]) + (" ..." if len(apps) > 6 else "")
         print(C.dim(f"  {len(apps)} application target(s) for AppSec methodology: {srcs}"))
@@ -925,10 +945,54 @@ def main(argv=None):
 
     scan_meta = {"mode": args.mode, "from_xml": args.from_xml, "from_dir": args.from_dir,
                  "target": targets[0][0] if targets else ""}
+
+    # Build the engagement projection once if anything downstream needs it.
+    eng_payload = None
+    if args.emit_json or args.llm:
+        eng_payload = build_engagement_json(report, mods, paths, scan_meta)
+
+    # Optional LOCAL LLM co-pilot — offline-safe, local (data stays on this machine).
+    _llm_addendum = ""
+    if args.llm:
+        try:
+            import advisor as _adv
+            import llm as _llm
+        except Exception as exc:                                       # pragma: no cover
+            _adv = None
+            print(C.dim(f"  --llm requested but co-pilot unavailable: {exc}"))
+        if _adv is not None:
+            if _llm.available():
+                model = args.llm_model or None
+                print(C.dim(f"  local LLM co-pilot online — planner={_llm.pick('planner')}, "
+                            f"narrator={_llm.pick('narrator')} (data stays on this machine)"))
+                # Fast role first (7B adviser) so the operator sees value immediately.
+                advice = _adv.advise(eng_payload, model=model)
+                if advice:
+                    eng_payload["advice"] = advice
+                    print(C.bold("\n  Adviser — next moves (local LLM):"))
+                    for i, a in enumerate(advice, 1):
+                        tag = f" [{a['attack']}]" if a.get("attack") else ""
+                        print(f"    {i}. {a['suggestion']}{tag}")
+                        if a.get("why"):
+                            print(C.dim(f"        why: {a['why']}"))
+                if args.runbook_out:
+                    _llm_addendum = _adv.runbook_addendum_md(
+                        eng_payload.get("attack_paths", []), ctx=_ctx or None, model=model)
+                # Narrator last (may be a large, minutes-slow local model).
+                _nar = _llm.pick("narrator")
+                print(C.dim(f"  generating executive summary with {_nar} — a large local model, "
+                            "this can take a few minutes; use --llm-model qwen2.5:7b for a faster one"))
+                summary = _adv.exec_summary(eng_payload, model=model)
+                if summary:
+                    eng_payload["executive_summary"] = summary
+                    print(C.grn("  executive summary ready (added to engagement JSON)"))
+            else:
+                print(C.dim("  --llm set but no local Ollama model reachable "
+                            "(is `ollama serve` up?); LLM extras skipped, engine unaffected"))
+
     if args.emit_json:
-        payload = build_engagement_json(report, mods, paths, scan_meta)
         with open(args.emit_json, "w", encoding="utf-8") as fh:
-            json.dump(payload, fh, indent=2)
+            json.dump(eng_payload, fh, indent=2)
         print(C.grn(f"[+] Engagement JSON (frontend contract) written: {args.emit_json}"))
     if args.report_out:
         from reporting import write_report
@@ -941,7 +1005,11 @@ def main(argv=None):
     if args.runbook_out:
         from reporting import write_runbook
         write_runbook(report, mods, paths, args.runbook_out, scan=scan_meta)
-        print(C.grn(f"[+] Operator runbook written: {args.runbook_out}"))
+        if _llm_addendum:
+            with open(args.runbook_out, "a", encoding="utf-8") as fh:
+                fh.write(_llm_addendum)
+        print(C.grn(f"[+] Operator runbook written: {args.runbook_out}"
+                    + (" (+ AI-expanded playbook)" if _llm_addendum else "")))
     if args.killchain_out:
         from killchain import write_killchain
         write_killchain(report, mods, paths, args.killchain_out, scan=scan_meta)

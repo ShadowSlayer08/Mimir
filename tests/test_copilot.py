@@ -45,3 +45,14 @@ def test_from_engagement():
          "confidence": "high", "score": 100, "hosts": ["a"], "steps": []}]}
     recs = recommend_from_engagement(eng)
     assert recs and recs[0]["rank"] == 1
+
+
+def test_reasoning_trace_sums_to_score():
+    paths = [{"id": "AD-1", "name": "user -> DA", "kind": "domain", "severity": "critical",
+              "confidence": "high", "score": 110, "hosts": ["u", "DA"],
+              "steps": [{"technique_id": "T1098", "command": "x"}]}]
+    rec = recommend([], paths)[0]
+    trace = rec["trace"]
+    assert set(trace["contributions"]) == {"impact", "confidence", "proximity", "low_effort"}
+    # weighted contributions reconstruct the displayed score (± rounding)
+    assert abs(sum(trace["contributions"].values()) - rec["score"]) <= 1

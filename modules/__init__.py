@@ -282,12 +282,19 @@ def dispatch_apps(app_targets, report, mode=None, docs_dir=None):
     from .mobile import MobileModule
     from .thick_client import ThickClientModule
     from .cloud import CloudModule
+    from .wireless import WirelessModule
+    from .kubernetes import KubernetesModule
+    from .source import SourceModule
+    from .identity import IdentityModule
+    from .hypervisor import HypervisorModule
     by_host = defaultdict(list)
     for f in report.get("findings", []):
         by_host[f["host"]].append(f)
     handlers = {"web": WebAppModule(docs_dir), "api": APIModule(docs_dir),
                 "mobile": MobileModule(docs_dir), "thick": ThickClientModule(docs_dir),
-                "cloud": CloudModule(docs_dir)}
+                "cloud": CloudModule(docs_dir), "wireless": WirelessModule(docs_dir),
+                "k8s": KubernetesModule(docs_dir), "source": SourceModule(docs_dir),
+                "identity": IdentityModule(docs_dir), "hypervisor": HypervisorModule(docs_dir)}
     results = []
     for t in (app_targets or []):
         h = handlers.get(t.get("kind"))

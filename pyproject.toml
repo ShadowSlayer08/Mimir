@@ -49,6 +49,8 @@ redengine-scan = "nmap_analyzer:main"
 redengine-web = "webapi:main"
 redengine-adgraph = "ad_graph:main"
 redengine-copilot = "copilot:main"
+redengine-advisor = "advisor:main"
+redengine-mcp = "mcp_server:main"
 
 # Flat layout: enumerate every shipped top-level module explicitly, plus the
 # modules/ code package and the docs/ knowledge base as importable DATA
@@ -78,6 +80,9 @@ py-modules = [
     "ad_graph",
     "copilot",
     "context",
+    "llm",
+    "advisor",
+    "mcp_server",
     "ciphers",
     "ciphers_v4",
     "validate_kb",

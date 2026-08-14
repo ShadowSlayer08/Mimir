@@ -38,12 +38,17 @@ pentest_console.py            PySide6 console: Attack Paths + Modules tabs + sta
 attack_dashboard.py / red_engine.py   target-acquisition dashboard + single GUI entry (.exe)
 webapi.py                     read-only REST API + web GUI over the --emit-json contract (redengine-web)
 ad_graph.py                   ingest BloodHound/SoapHound/RustHound -> AD graph -> staged paths (redengine-adgraph)
-copilot.py                    engagement co-pilot: rank the next-best actions (redengine-copilot)
+copilot.py                    engagement co-pilot: rank next-best actions + score trace (redengine-copilot)
+llm.py                        optional LOCAL LLM layer (Ollama); offline-safe, cloud models excluded
+advisor.py                    local-LLM co-pilot: Planner/Narrator/Adviser — full tradecraft (redengine-advisor)
+mcp_server.py                 read-only MCP server over an engagement (redengine-mcp); query-only
 knowledge_loader.py           parses docs/ yaml knowledge blocks
 validate_kb.py                knowledge-base integrity check (CI)
 modules/                      generic doc-backed dispatcher + per-service fallbacks
-                              (+ web_app / api / mobile / thick / cloud: OWASP WSTG /
-                              API-Top-10 / MASVS + CWE + ATT&CK-Cloud target-driven AppSec)
+                              (+ target-driven AppSec: web_app / api / mobile / thick
+                              [win/linux/macos] / cloud / wireless / kubernetes / source
+                              / identity / hypervisor — OWASP WSTG/API-Top-10/MASVS +
+                              CWE + ATT&CK-Cloud/Containers/ICS)
 docs/                         the knowledge base (constitution, registry, maps, module methodology)
 tests/                        run_tests.py + fixtures (full_scan.xml, scan.xml, scan.nmap)
 ```
@@ -71,7 +76,16 @@ python webapi.py eng.json                              # read-only REST API + we
 # AD attack-path graph (operator collects with BloodHound/SoapHound/RustHound; engine ingests + stages)
 python ad_graph.py bloodhound.zip --owned "DOMAIN USERS@DOMAIN"          # staged priv-esc paths to DA
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes --bloodhound bloodhound.zip  # merge AD paths
-python copilot.py eng.json                             # co-pilot: ranked next-best actions from an engagement
+python copilot.py eng.json --why                       # co-pilot: ranked next-best actions + score breakdown
+# LOCAL LLM co-pilot (Ollama) — optional, offline-safe, concrete red-team tradecraft (authorized use)
+python llm.py --selftest                               # show reachable models + role picks (planner/narrator/adviser/embed)
+python advisor.py eng.json --summary --advise          # exec summary (narrator) + next-moves (adviser)
+python advisor.py eng.json --runbook rb.md             # operator runbook + AI-expanded playbook (Planner)
+python assess.py --from-xml tests/fixtures/full_scan.xml --yes --llm --emit-json eng.json --runbook rb.md
+python mcp_server.py eng.json --selftest               # read-only MCP surface (redengine-mcp); wire into an LLM client
+#   NOTE: Ollama data stays local; cloud (':cloud') models are excluded unless REDENGINE_LLM_ALLOW_CLOUD=1.
+#   If :11434 fails to bind on Windows (excluded-port-range), run `OLLAMA_HOST=127.0.0.1:21434 ollama serve`
+#   and point the engine at it: set OLLAMA_HOST=http://127.0.0.1:21434
 # Live risk enrichment + per-asset scoring + engagement ledger (run diff + triage)
 python enrich.py                                       # cache/summarise CISA-KEV + FIRST-EPSS
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes --enrich --ledger eng.db
