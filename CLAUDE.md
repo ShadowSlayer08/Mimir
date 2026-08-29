@@ -38,7 +38,8 @@ pentest_console.py            PySide6 console: Attack Paths + Modules tabs + sta
 attack_dashboard.py / red_engine.py   target-acquisition dashboard + single GUI entry (.exe)
 webapi.py                     read-only REST API + web GUI over the --emit-json contract (redengine-web)
 ad_graph.py                   ingest BloodHound/SoapHound/RustHound -> AD graph -> staged paths (redengine-adgraph)
-copilot.py                    engagement co-pilot: LLM-first ranking + score trace (redengine-copilot)
+copilot.py                    engagement co-pilot: LLM-first ranking + score trace + lessons bias (redengine-copilot)
+lessons.py                    what-worked ledger — bounded copilot bias from past operator outcomes (redengine-lessons)
 llm.py                        optional LOCAL LLM layer (Ollama); offline-safe, cloud models excluded
 qualia.py                     LLM-first qualitative decisions with deterministic fallback (every judgment call routes here)
 advisor.py                    local-LLM co-pilot: Planner/Narrator/Adviser — full tradecraft (redengine-advisor)
@@ -93,6 +94,9 @@ python enrich.py                                       # cache/summarise CISA-KE
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes --enrich --ledger eng.db
 python ledger.py eng.db                                # history + diff (new/fixed/muted)
 python ledger.py eng.db triage <key> --status false_positive   # disposition a finding
+# Lessons — what-worked ledger; feeds bounded bias into copilot ranking
+python lessons.py eng.db record --technique T1210 --context smb --outcome worked
+python copilot.py eng.json --top 10 --why --lessons eng.db     # apply the bias
 # Eval harness (CI-friendly measured coverage; optional A/B deterministic vs LLM)
 python -m evals.bench                                  # run all scenarios, exit non-zero on any miss
 python -m evals.bench --compare-llm --json out.json    # A/B against LLM-first (needs Ollama)

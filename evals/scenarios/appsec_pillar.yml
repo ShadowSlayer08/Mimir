@@ -1,0 +1,63 @@
+# Eval scenario: exercise the target-driven AppSec pillar directly.
+# Uses full_scan.xml as the infra baseline (auto-promoted web targets) and adds
+# operator-supplied web/api/mobile/thick/cloud/k8s/identity/hypervisor targets
+# so every AppSec module dispatches. Locks the OWASP + CWE coverage.
+
+fixture: tests/fixtures/full_scan.xml
+difficulty: medium
+notes: >
+  All 10 target-driven AppSec modules must dispatch, and each must stage at
+  least one signature check. A regression in the AppSec dispatcher, the
+  operator-input parsers, or a per-module check block shows up here.
+
+operator:
+  web:       [http://demo.corp.lab/app]
+  api:       [http://demo.corp.lab/api]
+  mobile:    [samples/app.apk, samples/app.ipa]
+  thick:     [samples/client.exe, samples/client.dmg, samples/client.elf]
+  cloud:     [aws, azure:contoso-prod, gcp]
+  wireless:  [wifi, ble]
+  k8s:       [https://k8s.corp.lab:6443]
+  source:    [./repo]
+  identity:  [entra:contoso.onmicrosoft.com, okta]
+  hypervisor: [esxi:10.0.0.8, vcenter:vc.corp.lab]
+
+expected:
+  # infra layer still passes (auto-promoted http/https as web modules)
+  hosts_min: 2
+  findings_min: 20
+
+  # Every AppSec module must dispatch at least one result.
+  appsec_modules_must_include:
+    - web_app
+    - api
+    - mobile
+    - thick
+    - cloud
+    - wireless
+    - k8s
+    - source
+    - identity
+    - hypervisor
+
+  # A signature check from each module (name substring, case-insensitive; attack optional).
+  appsec_checks_must_include:
+    - {module: web_app,    name_contains: "fingerprint"}
+    - {module: api,        name_contains: "auth"}
+    - {module: mobile,     name_contains: "unpack"}
+    - {module: thick,      name_contains: "decompile"}
+    - {module: cloud,      name_contains: "posture"}
+    - {module: wireless,   name_contains: "survey"}
+    - {module: k8s,        name_contains: "recon"}
+    - {module: source,     name_contains: "secret"}
+    - {module: identity,   name_contains: "recon"}
+    - {module: hypervisor, name_contains: "recon"}
+
+  # macOS thick-client platform gating must produce a Mach-O check.
+  # (Only matches when the .dmg operator input dispatches a macos-platform module.)
+  # We rely on the module-substring match above; macOS-specific check is exercised
+  # by tests/test_domains.py::test_thick_platform_gating.
+
+  # infra path-kinds still land as before
+  techniques_must_include: [T1190, T1078]
+  path_kinds_must_include: [rce, lateral, domain]

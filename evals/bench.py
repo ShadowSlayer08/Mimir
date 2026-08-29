@@ -76,10 +76,20 @@ def _sev_at_least(actual, threshold):
 
 # --------------------------------------------------------------------------- #
 # Engine invocation — pure, no side effects.
-def _run_engine(fixture_path, *, deterministic=True):
-    """Run the engine over one nmap XML fixture. Returns (report, paths, recs)."""
+def _run_engine(fixture_path, *, deterministic=True, operator=None):
+    """Run the engine over one nmap XML fixture. Returns (report, paths, recs, app_mods).
+
+    `operator` is an optional dict shaped like a scenario's `operator:` block:
+        {web: [urls], api: [...], mobile: [...], thick: [...], cloud: [...],
+         wireless: [...], k8s: [...], source: [...], identity: [...], hypervisor: [...]}
+    which is routed through `apptargets.app_targets` -> `dispatch_apps`, so a
+    scenario can exercise the AppSec pillar without needing an nmap fixture that
+    happens to expose that surface.
+    """
     from nmap_analyzer import load_scan, analyze, build_report
     from attack_path_engine import generate_paths
+    from apptargets import app_targets
+    from modules import dispatch_apps
     import copilot
     import llm
 
@@ -91,14 +101,26 @@ def _run_engine(fixture_path, *, deterministic=True):
         report = build_report(hosts, meta, analyze(hosts))
         paths = generate_paths(report)
         recs = copilot.recommend(report.get("findings", []), paths, top=5)
-        return report, paths, recs
+        app_mods = []
+        op = operator or {}
+        if any(op.get(k) for k in ("web", "api", "mobile", "thick", "cloud",
+                                   "wireless", "k8s", "source", "identity", "hypervisor")):
+            targets = app_targets(
+                report,
+                web=op.get("web", []) or [], api=op.get("api", []) or [],
+                mobile=op.get("mobile", []) or [], thick=op.get("thick", []) or [],
+                cloud=op.get("cloud", []) or [], wireless=op.get("wireless", []) or [],
+                k8s=op.get("k8s", []) or [], source=op.get("source", []) or [],
+                identity=op.get("identity", []) or [], hypervisor=op.get("hypervisor", []) or [])
+            app_mods = dispatch_apps(targets, report)
+        return report, paths, recs, app_mods
     finally:
         llm.available = saved
 
 
 # --------------------------------------------------------------------------- #
 # Scoring — pure, testable.
-def _evaluate(scenario, report, paths, recs):
+def _evaluate(scenario, report, paths, recs, app_mods=None):
     """Score one scenario's expected assertions against actual engine output."""
     exp = scenario.get("expected", {}) or {}
     findings = report.get("findings", []) or []
@@ -162,6 +184,42 @@ def _evaluate(scenario, report, paths, recs):
         else:
             misses.append(f"path kind missing: {k!r}")
 
+    # AppSec-pillar assertions — ModuleResult uses `module` as the id (web_app,
+    # api, mobile, thick, cloud, wireless, k8s, source, identity, hypervisor).
+    app_ids_seen = {(m.get("module") or "") for m in (app_mods or [])}
+    for k in (exp.get("appsec_modules_must_include") or []):
+        total += 1
+        if k in app_ids_seen:
+            hits += 1
+        else:
+            misses.append(f"AppSec module not dispatched: {k!r}")
+
+    # appsec_checks: [{module, name_contains, attack?}]
+    for want in (exp.get("appsec_checks_must_include") or []):
+        total += 1
+        mod = (want.get("module") or "").lower()
+        needle = (want.get("name_contains") or "").lower()
+        want_attack = (want.get("attack") or "").strip()
+        matched = False
+        for m in (app_mods or []):
+            if mod and (m.get("module") or "").lower() != mod:
+                continue
+            for c in m.get("checks", []):
+                cn = (c.get("name") or "").lower()
+                if needle and needle not in cn:
+                    continue
+                if want_attack and (c.get("attack") or "") != want_attack:
+                    continue
+                matched = True
+                break
+            if matched:
+                break
+        if matched:
+            hits += 1
+        else:
+            misses.append(f"AppSec check not staged: module={mod or '*'} "
+                          f"name~={needle!r} attack={want_attack or 'any'}")
+
     # top-action regex
     if exp.get("top_action_title_regex") and recs:
         total += 1
@@ -178,7 +236,8 @@ def _evaluate(scenario, report, paths, recs):
         "recall": (hits / total) if total else 1.0,
         "misses": misses,
         "counts": {"hosts": len(hosts), "findings": len(findings),
-                   "paths": len(paths), "techniques_seen": len(seen_tech)},
+                   "paths": len(paths), "techniques_seen": len(seen_tech),
+                   "app_modules": len(app_mods or [])},
     }
 
 
@@ -189,9 +248,10 @@ def _run_scenario(path, *, compare_llm=False):
     if not os.path.exists(fixture):
         return {"scenario": path, "error": f"fixture not found: {fixture}"}
 
+    operator = scenario.get("operator") or {}
     t0 = time.perf_counter()
-    report, paths, recs = _run_engine(fixture, deterministic=True)
-    det = _evaluate(scenario, report, paths, recs)
+    report, paths, recs, app_mods = _run_engine(fixture, deterministic=True, operator=operator)
+    det = _evaluate(scenario, report, paths, recs, app_mods)
     det["elapsed_s"] = round(time.perf_counter() - t0, 2)
 
     out = {"scenario": os.path.relpath(path, _ROOT),
@@ -204,8 +264,9 @@ def _run_scenario(path, *, compare_llm=False):
         import llm
         if llm.available():
             t0 = time.perf_counter()
-            report_l, paths_l, recs_l = _run_engine(fixture, deterministic=False)
-            llm_res = _evaluate(scenario, report_l, paths_l, recs_l)
+            report_l, paths_l, recs_l, app_l = _run_engine(fixture, deterministic=False,
+                                                           operator=operator)
+            llm_res = _evaluate(scenario, report_l, paths_l, recs_l, app_l)
             llm_res["elapsed_s"] = round(time.perf_counter() - t0, 2)
             llm_res["top_action_title"] = recs_l[0].get("title", "") if recs_l else ""
             out["llm"] = llm_res

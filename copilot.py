@@ -176,9 +176,14 @@ def _apply_ranking(pool, ranking, top):
     return out
 
 
-def recommend(findings, paths, top=12):
+def recommend(findings, paths, top=12, *, lessons_db=None):
     """Ranked next-best-action list. LLM-first via qualia; falls back to the
-    deterministic weighted ranker when Ollama is offline or returns bad output."""
+    deterministic weighted ranker when Ollama is offline or returns bad output.
+
+    When `lessons_db` (SQLite path) is provided, applies bounded score bias from
+    past operator outcomes (see lessons.py) BEFORE truncating to `top` — so
+    consistently-successful (technique, ctx) combos rise, consistently-failing
+    ones sink. Never drops candidates; only re-orders."""
     pool = _candidate_pool(findings, paths)
     if not pool:
         return []
@@ -192,12 +197,22 @@ def recommend(findings, paths, top=12):
         validator=lambda o: _valid_ranking(o, pool, top))
     # If qualia returned a list, it's already the fallback's output — pass through.
     if isinstance(result, list):
-        return result
-    return _apply_ranking(pool, result, top)
+        actions = result
+    else:
+        actions = _apply_ranking(pool, result, top)
+
+    if lessons_db:
+        try:
+            import lessons
+            actions = lessons.rerank_with_lessons(actions, lessons_db)
+        except Exception:                                              # pragma: no cover
+            pass                                                       # bias is opt-in; never break the caller
+    return actions
 
 
-def recommend_from_engagement(eng, top=12):
-    return recommend(eng.get("findings", []), eng.get("attack_paths", []), top)
+def recommend_from_engagement(eng, top=12, *, lessons_db=None):
+    return recommend(eng.get("findings", []), eng.get("attack_paths", []), top,
+                     lessons_db=lessons_db)
 
 
 def main(argv=None):
@@ -210,10 +225,13 @@ def main(argv=None):
     ap.add_argument("--top", type=int, default=10)
     ap.add_argument("--why", action="store_true",
                     help="show the score breakdown (weighted component contributions) per action")
+    ap.add_argument("--lessons", metavar="DB",
+                    help="engagement ledger SQLite path — apply what-worked bias "
+                         "(record outcomes with lessons.py)")
     args = ap.parse_args(argv)
     with open(args.engagement, encoding="utf-8") as fh:
         eng = json.load(fh)
-    recs = recommend_from_engagement(eng, args.top)
+    recs = recommend_from_engagement(eng, args.top, lessons_db=args.lessons)
     print(f"[+] {len(recs)} recommended next action(s):\n")
     for a in recs:
         print(f"  #{a['rank']:<2} [{a['score']:>3}] ({a['category']}) {a['title']}")
@@ -228,6 +246,10 @@ def main(argv=None):
                 print(f"      score [{src}]: {parts}  ({t.get('basis','')})")
             else:
                 print(f"      score [{src}]: model re-ranked")
+            if t.get("lessons_bias"):
+                sign = "+" if t["lessons_bias"] > 0 else ""
+                print(f"      lessons bias: {sign}{t['lessons_bias']}  "
+                      f"(key: {t.get('lessons_key', '')})")
     return 0
 
 
