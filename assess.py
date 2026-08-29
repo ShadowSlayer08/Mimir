@@ -705,7 +705,8 @@ def build_engagement_json(report, mods, paths, scan_meta):
     findings = [{"host": f.get("host", "?"), "port": f.get("port", 0),
                  "severity": f.get("severity", "info"), "category": f.get("category", ""),
                  "title": f.get("title", ""), "cve": f.get("cve", []),
-                 "owasp": f.get("owasp", []), "cwe": f.get("cwe", [])}
+                 "owasp": f.get("owasp", []), "cwe": f.get("cwe", []),
+                 "exploit_refs": f.get("exploit_refs", [])}
                 for f in report.get("findings", [])]
 
     attack_paths = []
@@ -828,6 +829,17 @@ def main(argv=None):
     findings = analyze(hosts, exposure=expo, business=biz, kev_cves=(kev or None),
                        epss_map=epss_map, asset_cfg=asset_cfg) + evidence
     findings.sort(key=lambda f: SEV_RANK.get(f["severity"], 9))
+    # Exploit references (public links, never payloads) — always available from
+    # the bundled seed; --enrich (live) or --offline (cache-only) opts into the
+    # ExploitDB CSV cross-reference as well.
+    try:
+        from exploit_refs import enrich_findings as _enrich_exploits
+        _enrich_exploits(findings, offline=(args.offline or not args.enrich))
+        _n = sum(1 for f in findings if f.get("exploit_refs"))
+        if _n:
+            print(C.dim(f"  exploit references: {_n} finding(s) linked to public PoCs"))
+    except Exception as e:                                              # pragma: no cover
+        print(C.ylw(f"  exploit-refs unavailable: {e}"))
     report = build_report(hosts, meta, findings)
     print_inventory(report)
     print(C.bold("\n  Findings (by severity):"))

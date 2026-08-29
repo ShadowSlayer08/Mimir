@@ -1,0 +1,36 @@
+# Adversarial scenario: a clean host with only modern services (OpenSSH 9.6p1,
+# nginx 1.27, unbound DNS, chrony NTP, Linux 6.6). The engine MUST NOT
+# hallucinate criticals or derive rce/lateral/domain paths from thin air.
+#
+# This is the "no false alarms" gate — a regression that starts flagging benign
+# services as critical, or synthesises attack paths where none exist, fails here.
+
+fixture: tests/fixtures/benign_minimal.xml
+difficulty: hard
+notes: >
+  Adversarial: verifies NEGATIVE space. Nothing critical/high should surface,
+  no rce / lateral / domain paths, and the top action must not name a known
+  bug (EternalBlue, domain compromise, etc.) that isn't there.
+
+expected:
+  hosts_min: 1
+  findings_min: 0                        # zero findings would still be valid
+  findings_max: 8                        # anything above 8 = over-triage
+  paths_max: 2                           # a lone auto-promoted webapp is expected
+
+  # POSITIVE: we still expect a staged webapp path for the auto-promoted https.
+  path_kinds_must_include: [webapp]
+
+  # NEGATIVE: none of these should ever appear.
+  findings_must_not_include:
+    - {severity: critical}                          # no criticals at all
+    - {title_contains: "eternalblue"}
+    - {title_contains: "heartbleed"}
+    - {title_contains: "ms17-010"}
+    - {title_contains: "default cred"}
+    - {title_contains: "anonymous"}
+
+  path_kinds_must_not_include: [rce, lateral, domain]
+
+  # Top action should reflect the actual surface (a webapp), not a fabricated critical.
+  top_action_title_regex_must_not_match: "eternalblue|ms17-010|domain compromise|heartbleed"

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<nmaprun scanner="nmap" version="7.94" args="nmap -sV -O --script vulners,vuln,default -oX" startstr="Sat Aug 09 2026">
+<host>
+<status state="up"/>
+<address addr="10.20.30.40" addrtype="ipv4"/>
+<hostnames><hostname name="clean.corp.lab"/></hostnames>
+<ports>
+<port protocol="tcp" portid="22"><state state="open" reason="syn-ack"/>
+  <service name="ssh" product="OpenSSH" version="9.6p1" extrainfo="protocol 2.0"><cpe>cpe:/a:openbsd:openssh:9.6p1</cpe></service>
+  <script id="ssh-hostkey" output="3072 SHA256:cleanhostkey (ED25519)"/>
+</port>
+<port protocol="tcp" portid="53"><state state="open" reason="syn-ack"/>
+  <service name="domain" product="unbound"/></port>
+<port protocol="tcp" portid="443"><state state="open" reason="syn-ack"/>
+  <service name="https" product="nginx" version="1.27.0" tunnel="ssl"><cpe>cpe:/a:nginx:nginx:1.27.0</cpe></service>
+</port>
+<port protocol="tcp" portid="123"><state state="open" reason="syn-ack"/>
+  <service name="ntp" product="chrony"/></port>
+</ports>
+<os><osmatch name="Linux 6.6" accuracy="98"/></os>
+</host>
+<runstats><finished elapsed="12.34"/><hosts up="1" down="0" total="1"/></runstats>
+</nmaprun>

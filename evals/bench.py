@@ -220,7 +220,71 @@ def _evaluate(scenario, report, paths, recs, app_mods=None):
             misses.append(f"AppSec check not staged: module={mod or '*'} "
                           f"name~={needle!r} attack={want_attack or 'any'}")
 
-    # top-action regex
+    # --- NEGATIVE assertions: things that MUST NOT appear ------------------ #
+    # Upper bounds — catches hallucinated over-triage.
+    if "hosts_max" in exp:
+        total += 1
+        if len(hosts) <= int(exp["hosts_max"]):
+            hits += 1
+        else:
+            misses.append(f"hosts_max: {len(hosts)} > {exp['hosts_max']}")
+    if "findings_max" in exp:
+        total += 1
+        if len(findings) <= int(exp["findings_max"]):
+            hits += 1
+        else:
+            misses.append(f"findings_max: {len(findings)} > {exp['findings_max']}")
+    if "paths_max" in exp:
+        total += 1
+        if len(paths) <= int(exp["paths_max"]):
+            hits += 1
+        else:
+            misses.append(f"paths_max: {len(paths)} > {exp['paths_max']}")
+
+    # Findings that MUST NOT surface (false positive gate).
+    for m in (exp.get("findings_must_not_include") or []):
+        total += 1
+        needle = (m.get("title_contains") or "").lower()
+        wants_sev = m.get("severity")
+        wants_sev_min = m.get("severity_min")
+        found = None
+        for f in findings:
+            title = (f.get("title") or "").lower()
+            if needle and needle not in title:
+                continue
+            sev = f.get("severity", "")
+            if wants_sev and sev.lower() != wants_sev.lower():
+                continue
+            if wants_sev_min and not _sev_at_least(sev, wants_sev_min):
+                continue
+            found = f
+            break
+        if found is None:
+            hits += 1
+        else:
+            misses.append(f"unexpected finding surfaced: {found.get('title', '')!r} "
+                          f"(sev={found.get('severity', '')})")
+
+    # Path kinds that MUST NOT be derived.
+    for k in (exp.get("path_kinds_must_not_include") or []):
+        total += 1
+        if k in seen_kinds:
+            misses.append(f"unexpected path kind derived: {k!r}")
+        else:
+            hits += 1
+
+    # top-action must NOT match a regex (e.g. no false-alarm top action).
+    if exp.get("top_action_title_regex_must_not_match") and recs:
+        total += 1
+        rx = re.compile(exp["top_action_title_regex_must_not_match"], re.I)
+        title = recs[0].get("title", "") if recs else ""
+        if not rx.search(title):
+            hits += 1
+        else:
+            misses.append(f"top action title {title!r} matched forbidden "
+                          f"/{exp['top_action_title_regex_must_not_match']}/i")
+
+    # top-action regex (positive)
     if exp.get("top_action_title_regex") and recs:
         total += 1
         rx = re.compile(exp["top_action_title_regex"], re.I)

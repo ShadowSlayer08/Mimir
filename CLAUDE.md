@@ -33,6 +33,7 @@ evidence.py                   ingest an engagement evidence folder -> merged inv
 reporting.py                  engagement report (MD/HTML) + ATT&CK Navigator layer
 ledger.py                     persistent SQLite engagement ledger (+ run diff, triage)
 enrich.py                     live CISA-KEV + FIRST-EPSS feeds (cached, offline-safe) for risk
+exploit_refs.py               CVE -> public exploit REFERENCES (links, never payloads); bundled seed + ExploitDB cache
 apptargets.py                 AppSec: web-app targets (auto-promote http/https + operator --web)
 pentest_console.py            PySide6 console: Attack Paths + Modules tabs + staging queue
 attack_dashboard.py / red_engine.py   target-acquisition dashboard + single GUI entry (.exe)
