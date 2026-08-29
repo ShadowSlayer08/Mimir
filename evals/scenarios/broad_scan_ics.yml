@@ -1,0 +1,30 @@
+# Eval scenario: broad_scan.xml — a mixed-tech environment with an exposed
+# Docker API (immediate host RCE), ICS/OT (Modbus), out-of-band mgmt (IPMI BMC)
+# and legacy services (VNC, Telnet). Exercises the container / ICS / IoT modules.
+
+fixture: tests/fixtures/broad_scan.xml
+difficulty: medium
+notes: >
+  Non-Windows, non-AD environment. The engine's non-AD coverage — containers,
+  ICS/OT, out-of-band management, legacy services — has to hold.
+
+expected:
+  hosts_min: 2
+  findings_min: 20
+
+  findings_must_include:
+    - {title_contains: "docker",       severity: critical}
+    - {title_contains: "modbus",       severity_min: high}
+    - {title_contains: "ipmi",         severity_min: high}
+    - {title_contains: "vnc",          severity_min: high}
+    - {title_contains: "telnet",       severity_min: high}
+
+  # Docker/Modbus/IPMI surface as findings; the engine seeds lateral + domain paths
+  # from credential-exposure + DC detection here (T1078 valid-accounts, T1003 creds,
+  # T1482 trust discovery, T1021.002 SMB admin shares).
+  techniques_must_include: [T1078, T1003, T1482]
+
+  path_kinds_must_include: [lateral, domain]
+
+  # Top action is either the Docker-exposed critical (quick-win) or the DA path.
+  top_action_title_regex: "docker|domain compromise|dc01"

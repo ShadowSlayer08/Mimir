@@ -1,0 +1,32 @@
+# Eval scenario: full_scan.xml — a domain controller + web server, classic
+# post-2017 red-team fixture (EternalBlue on the DC + Heartbleed on the web host).
+# The engine should surface both critical CVEs and derive a domain-compromise path.
+
+fixture: tests/fixtures/full_scan.xml
+difficulty: easy
+notes: >
+  Canonical "red-team lab" scan. Any regression here breaks the whole story —
+  keep this scenario passing at 100% recall.
+
+expected:
+  hosts_min: 2
+  findings_min: 20
+
+  # Critical findings the engine MUST surface (substring match, case-insensitive).
+  findings_must_include:
+    - {title_contains: "eternalblue",  severity: critical}
+    - {title_contains: "heartbleed",   severity: critical}
+    - {title_contains: "openssh",      severity_min: high}
+    - {title_contains: "telnet",       severity_min: high}
+    - {title_contains: "redis",        severity_min: high}
+
+  # ATT&CK techniques we expect anywhere in the staged path steps.
+  # T1190 (initial access via public app), T1078 (valid accounts for lateral),
+  # T1003 (credential dumping), T1482 (domain trust discovery).
+  techniques_must_include: [T1190, T1078, T1003, T1482]
+
+  # Attack-path kinds that MUST be derived.
+  path_kinds_must_include: [rce, lateral, domain]
+
+  # Ranking assertions — the top action should reach the DC / be a critical foothold.
+  top_action_title_regex: "eternalblue|domain compromise|MS17-010"

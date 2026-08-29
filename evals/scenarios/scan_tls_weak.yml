@@ -1,0 +1,25 @@
+# Eval scenario: scan.xml — TLS-heavy fixture stressing the cipher engine
+# (Heartbleed, anonymous DH, SSLv3, RC4/3DES, weak keys, expired certs).
+
+fixture: tests/fixtures/scan.xml
+difficulty: easy
+notes: >
+  TLS/crypto surface. Regressions here mean the ciphers_v4 engine or its
+  finding-schema wiring drifted.
+
+expected:
+  hosts_min: 1
+  findings_min: 15
+
+  findings_must_include:
+    - {title_contains: "heartbleed",   severity: critical}
+    - {title_contains: "anonymous",    severity: critical}
+    - {title_contains: "sslv3",        severity_min: high}
+    - {title_contains: "rc4",          severity_min: high}
+    - {title_contains: "poodle",       severity_min: high}
+
+  techniques_must_include: []             # TLS findings don't have to seed a path
+
+  path_kinds_must_include: []
+
+  top_action_title_regex: ".*"            # ranking not asserted (mostly quick-wins)

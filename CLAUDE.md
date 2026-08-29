@@ -52,6 +52,7 @@ modules/                      generic doc-backed dispatcher + per-service fallba
                               CWE + ATT&CK-Cloud/Containers/ICS)
 docs/                         the knowledge base (constitution, registry, maps, module methodology)
 tests/                        run_tests.py + fixtures (full_scan.xml, scan.xml, scan.nmap)
+evals/                        eval harness: scenario YAMLs + bench.py (redengine-bench) — measured coverage, A/B deterministic vs LLM
 ```
 
 ## Run / verify
@@ -92,6 +93,9 @@ python enrich.py                                       # cache/summarise CISA-KE
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes --enrich --ledger eng.db
 python ledger.py eng.db                                # history + diff (new/fixed/muted)
 python ledger.py eng.db triage <key> --status false_positive   # disposition a finding
+# Eval harness (CI-friendly measured coverage; optional A/B deterministic vs LLM)
+python -m evals.bench                                  # run all scenarios, exit non-zero on any miss
+python -m evals.bench --compare-llm --json out.json    # A/B against LLM-first (needs Ollama)
 ```
 
 ## Conventions
