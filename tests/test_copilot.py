@@ -48,10 +48,19 @@ def test_from_engagement():
 
 
 def test_reasoning_trace_sums_to_score():
+    # Force the deterministic branch — the LLM re-rank overrides the score, so this
+    # invariant only holds on the deterministic weighted path (which is the fallback).
+    import llm
+    from copilot import _deterministic_recommend
     paths = [{"id": "AD-1", "name": "user -> DA", "kind": "domain", "severity": "critical",
               "confidence": "high", "score": 110, "hosts": ["u", "DA"],
               "steps": [{"technique_id": "T1098", "command": "x"}]}]
-    rec = recommend([], paths)[0]
+    saved = llm.available
+    try:
+        llm.available = lambda: False
+        rec = _deterministic_recommend([], paths)[0]
+    finally:
+        llm.available = saved
     trace = rec["trace"]
     assert set(trace["contributions"]) == {"impact", "confidence", "proximity", "low_effort"}
     # weighted contributions reconstruct the displayed score (± rounding)

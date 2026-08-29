@@ -727,6 +727,41 @@ def host_grade(fs):
     return ("B", score) if score > 0 else ("A", score)
 
 
+def _deterministic_host_narrative(host_label, grade, score, fs):
+    """Terse deterministic one-liner if no local model — same output shape (str)."""
+    n = len(fs or [])
+    if not n:
+        return f"{host_label}: grade {grade} (score {score}) — no findings surfaced."
+    counts = {}
+    for f in fs:
+        counts[f.get("severity", "info")] = counts.get(f.get("severity", "info"), 0) + 1
+    parts = [f"{counts[k]} {k}" for k in ("critical", "high", "medium", "low", "info") if counts.get(k)]
+    return f"{host_label}: grade {grade} (score {score}) — {', '.join(parts)}."
+
+
+def host_grade_narrative(host_label, grade, score, fs):
+    """LLM-first ONE-sentence justification for this host's grade. Deterministic
+    fallback preserves the same output shape (a string). Callers use whichever
+    they get — the letter/score is unchanged; this only adds prose."""
+    fallback_text = _deterministic_host_narrative(host_label, grade, score, fs)
+    try:
+        import qualia
+    except Exception:                                                  # pragma: no cover
+        return fallback_text
+    top = sorted(fs or [], key=lambda f: SEV_WEIGHT.get(f.get("severity", "info"), 0),
+                 reverse=True)[:6]
+    digest = [{"sev": f.get("severity", ""), "title": (f.get("title") or "")[:120],
+               "category": f.get("category", "")} for f in top]
+    prompt = (
+        f"Write ONE short sentence (max 35 words) justifying grade {grade} for host "
+        f"{host_label} (deterministic risk score {score}). Ground the sentence in the top "
+        "findings below; no invented details. "
+        + qualia.compact({"grade": grade, "score": score, "top_findings": digest}))
+    return qualia.prose("host-narrative", prompt,
+                        fallback=lambda: fallback_text, role="adviser",
+                        options={"num_predict": 80})
+
+
 def build_report(hosts, meta, findings):
     per_host = defaultdict(list)
     for f in findings:

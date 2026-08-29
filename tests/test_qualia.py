@@ -149,3 +149,103 @@ def test_copilot_empty_pool_stays_empty():
     with _Stub(available=lambda: True, pick=lambda role="adviser": "m",
                generate_json=lambda *a, **k: {"ranked": [{"i": 0, "score": 1, "why": "x"}]}):
         assert copilot.recommend([], []) == []                 # empty pool short-circuits
+
+
+# ---- attack_path_engine._llm_rerank_paths -------------------------------- #
+_TWO_PATHS = [
+    {"id": "AP-001", "name": "lateral hop", "kind": "lateral", "severity": "medium",
+     "confidence": "medium", "score": 40, "hosts": ["a", "b"], "steps": []},
+    {"id": "AP-002", "name": "domain compromise", "kind": "domain", "severity": "critical",
+     "confidence": "high", "score": 110, "hosts": ["u", "DA"], "steps": []},
+]
+
+
+def test_path_rerank_offline_preserves_order():
+    from attack_path_engine import _llm_rerank_paths
+    with _Stub(available=lambda: False):
+        out = _llm_rerank_paths(list(_TWO_PATHS))
+    assert [p["id"] for p in out] == ["AP-001", "AP-002"]      # unchanged
+
+
+def test_path_rerank_llm_reorders_and_enriches():
+    from attack_path_engine import _llm_rerank_paths
+    canned = {"ranked": [
+        {"i": 1, "score": 180, "rationale": "reaches DA; highest leverage"},
+        {"i": 0, "score": 90, "rationale": "cheap lateral"},
+    ]}
+    with _Stub(available=lambda: True, pick=lambda role="adviser": "m",
+               generate_json=lambda *a, **k: canned):
+        out = _llm_rerank_paths(list(_TWO_PATHS))
+    assert out[0]["id"] == "AP-002" and out[0]["rank_source"] == "llm"
+    assert out[0]["rationale"] == "reaches DA; highest leverage"
+    assert out[0]["score"] == 180
+
+
+def test_path_rerank_appends_omitted_paths():
+    """LLM omits one path -> it must survive at the tail (never dropped)."""
+    from attack_path_engine import _llm_rerank_paths
+    canned = {"ranked": [{"i": 1, "score": 180, "rationale": "DA path"}]}
+    with _Stub(available=lambda: True, pick=lambda role="adviser": "m",
+               generate_json=lambda *a, **k: canned):
+        out = _llm_rerank_paths(list(_TWO_PATHS))
+    ids = [p["id"] for p in out]
+    assert ids == ["AP-002", "AP-001"]                         # omitted one kept at end
+    assert out[1]["rank_source"] == "deterministic"
+
+
+def test_path_rerank_bad_index_falls_back():
+    from attack_path_engine import _llm_rerank_paths
+    canned = {"ranked": [{"i": 99, "score": 200, "rationale": "invalid"}]}
+    with _Stub(available=lambda: True, pick=lambda role="adviser": "m",
+               generate_json=lambda *a, **k: canned):
+        out = _llm_rerank_paths(list(_TWO_PATHS))
+    assert [p["id"] for p in out] == ["AP-001", "AP-002"]
+
+
+def test_path_rerank_short_circuits_single_or_empty():
+    from attack_path_engine import _llm_rerank_paths
+    def _boom(*a, **k):
+        raise AssertionError("must not call LLM for <2 paths")
+    with _Stub(available=lambda: True, pick=lambda role="adviser": "m", generate_json=_boom):
+        assert _llm_rerank_paths([]) == []
+        assert _llm_rerank_paths([_TWO_PATHS[0]]) == [_TWO_PATHS[0]]
+
+
+# ---- nmap_analyzer.host_grade_narrative ---------------------------------- #
+def test_host_narrative_offline_fallback():
+    from nmap_analyzer import host_grade_narrative
+    fs = [{"severity": "critical", "title": "EternalBlue", "category": "CVE"},
+          {"severity": "high", "title": "OpenSSH old", "category": "CVE"}]
+    with _Stub(available=lambda: False):
+        out = host_grade_narrative("dc01", "F", 60, fs)
+    assert "dc01" in out and "F" in out and "critical" in out
+
+
+def test_host_narrative_llm_when_available():
+    from nmap_analyzer import host_grade_narrative
+    with _Stub(available=lambda: True, pick=lambda role="adviser": "m",
+               generate=lambda *a, **k: "Grade F reflects an unpatched MS17-010 exposure."):
+        out = host_grade_narrative("dc01", "F", 60,
+                                   [{"severity": "critical", "title": "MS17-010", "category": "CVE"}])
+    assert "MS17-010" in out
+
+
+# ---- advisor.exec_summary through qualia --------------------------------- #
+def test_exec_summary_offline_returns_skeleton():
+    import advisor
+    eng = {"meta": {"target": "10.0.0.0/24", "mode": "vapt",
+                    "severity_counts": {"critical": 1, "high": 2}, "unique_cves": ["CVE-1"]},
+           "hosts": [{"label": "a"}, {"label": "b"}],
+           "attack_paths": [{"name": "DA compromise", "severity": "critical",
+                             "confidence": "high", "rationale": "reaches DA"}]}
+    with _Stub(available=lambda: False):
+        out = advisor.exec_summary(eng)
+    assert "vapt" in out and "1 critical" in out and "DA compromise" in out
+
+
+def test_exec_summary_llm_wins_over_fallback():
+    import advisor
+    with _Stub(available=lambda: True, pick=lambda role="narrator": "m",
+               generate=lambda *a, **k: "The engagement demonstrates critical risk exposure."):
+        out = advisor.exec_summary({"meta": {"target": "x"}, "hosts": [], "attack_paths": []})
+    assert out == "The engagement demonstrates critical risk exposure."

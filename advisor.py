@@ -152,10 +152,44 @@ def _eng_digest(eng, top_findings=15):
     }
 
 
-def exec_summary(eng, model=None, timeout=None):
-    """Executive summary prose ('' if no local model)."""
-    if not eng or not llm.available():
+def _fallback_exec_summary(eng):
+    """Deterministic exec-summary skeleton when no local model is reachable.
+    Same output shape (a string). Numbers-driven, not narrative — the reader
+    still gets a useful client-safe overview at an airgapped desk."""
+    if not eng:
         return ""
+    meta = eng.get("meta", {}) or {}
+    sc = meta.get("severity_counts", {}) or {}
+    hosts = len(eng.get("hosts", []) or [])
+    paths = eng.get("attack_paths", []) or []
+    top = paths[0] if paths else {}
+    cves = meta.get("unique_cves", []) or []
+    parts = [
+        f"Assessed {hosts} host(s) in {meta.get('mode', '-')} mode against "
+        f"{meta.get('target', '-')}. Severity distribution: "
+        f"{sc.get('critical', 0)} critical, {sc.get('high', 0)} high, "
+        f"{sc.get('medium', 0)} medium, {sc.get('low', 0)} low."
+    ]
+    if top:
+        parts.append(
+            f"Highest-priority attack path: {top.get('name', '(unnamed)')} "
+            f"({(top.get('severity') or '').upper()}, confidence "
+            f"{top.get('confidence', '?')}) — {top.get('rationale', '') or 'staged for the operator'}."
+        )
+    if cves:
+        parts.append(f"Distinct CVEs observed: {len(cves)}.")
+    return " ".join(parts)
+
+
+def exec_summary(eng, model=None, timeout=None):
+    """Executive summary prose. LLM-first via qualia.prose; falls back to a
+    deterministic numbers-driven skeleton when Ollama is offline."""
+    if not eng:
+        return ""
+    try:
+        import qualia
+    except Exception:                                                  # pragma: no cover
+        return _fallback_exec_summary(eng)
     prompt = (
         "Write a concise EXECUTIVE SUMMARY (2-3 short paragraphs) for the client report of "
         "this authorized engagement. Cover the overall risk posture, the most serious exposures, "
@@ -163,8 +197,10 @@ def exec_summary(eng, model=None, timeout=None):
         "Engagement data:\n"
         + json.dumps(_eng_digest(eng), ensure_ascii=False)
     )
-    return (llm.generate(prompt, role="narrator", system=SYSTEM, model=model, timeout=timeout,
-                         options={"temperature": 0.3, "num_predict": 900}) or "").strip()
+    return qualia.prose("exec-summary", prompt,
+                        fallback=lambda: _fallback_exec_summary(eng),
+                        role="narrator", system=SYSTEM, model=model, timeout=timeout,
+                        options={"temperature": 0.3, "num_predict": 900})
 
 
 # --------------------------------------------------------------------------- #

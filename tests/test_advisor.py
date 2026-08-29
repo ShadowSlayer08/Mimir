@@ -31,10 +31,13 @@ class _Stub:
 
 
 def test_offline_safe_returns_empty():
+    # advise/plan_path/runbook still empty offline; exec_summary now returns the
+    # deterministic skeleton (same output shape - a string) rather than "".
     with _Stub(available=lambda: False):
         assert advisor.plan_path({"id": "x", "steps": [{}]}) == []
         assert advisor.advise({}) == []
-        assert advisor.exec_summary({"meta": {}}) == ""
+        assert advisor.exec_summary({}) == ""                          # empty input still empty
+        assert isinstance(advisor.exec_summary({"meta": {}}), str)     # otherwise a skeleton
         assert advisor.runbook_addendum_md([{"id": "x", "steps": [{}]}]) == ""
 
 

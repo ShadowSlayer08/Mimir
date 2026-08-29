@@ -327,7 +327,78 @@ def generate_paths(report):
                     s["abuse"] = a
     except Exception:                                                  # pragma: no cover
         pass
+    # LLM-first re-ranking (falls back silently to the deterministic order above).
+    result = _llm_rerank_paths(result)
     return result
+
+
+# --------------------------------------------------------------------------- #
+# LLM-first path re-ranking (qualia; safe deterministic fallback)
+def _llm_rerank_paths(paths):
+    """Let a LOCAL model re-order paths by real objective proximity / feasibility /
+    blast radius, and enrich each rationale. On any failure (Ollama offline, bad
+    shape, index errors) the deterministic order above is returned unchanged."""
+    if not paths or len(paths) < 2:
+        return paths
+    try:
+        import qualia
+    except Exception:                                                  # pragma: no cover
+        return paths
+    cards = [{"i": i, "id": p.get("id", ""), "name": p.get("name", ""),
+              "kind": p.get("kind", ""), "severity": p.get("severity", ""),
+              "confidence": p.get("confidence", ""), "det_score": p.get("score", 0),
+              "hosts": p.get("hosts", [])[:4],
+              "step_count": len(p.get("steps", [])),
+              "first_tech": (p.get("steps") or [{}])[0].get("technique_id", "")}
+             for i, p in enumerate(paths)]
+    prompt = (
+        "Re-rank these staged attack paths for an authorized red-team engagement. "
+        "Priority: objective proximity (domain compromise / high-value target > single-host "
+        "foothold > lateral), confidence, blast radius, low effort. Also give each path a "
+        "one-sentence rationale grounded in its concrete steps. "
+        "Return JSON only: "
+        '{"ranked":[{"i":<original_index>,"score":<0-200>,"rationale":"<one sentence>"}]}\n\n'
+        + qualia.compact({"paths": cards}))
+
+    def _valid(out):
+        if not isinstance(out, dict):
+            return False
+        r = out.get("ranked")
+        if not isinstance(r, list) or not r:
+            return False
+        seen = set()
+        for item in r[:len(paths)]:
+            if not isinstance(item, dict):
+                return False
+            i = item.get("i")
+            if not isinstance(i, int) or not (0 <= i < len(paths)) or i in seen:
+                return False
+            seen.add(i)
+        return True
+
+    ranking = qualia.decide("rank-paths", prompt, lambda: None,
+                            role="adviser", validator=_valid)
+    if not isinstance(ranking, dict):                                  # fallback (or None)
+        return paths
+    out, ranked_ids = [], set()
+    for item in ranking["ranked"]:
+        p = dict(paths[item["i"]])
+        try:
+            s = int(item.get("score", p.get("score", 0)))
+            p["score"] = max(0, min(200, s))
+        except (TypeError, ValueError):
+            pass
+        rationale = str(item.get("rationale", "") or "").strip()[:400]
+        if rationale:
+            p["rationale"] = rationale
+        p["rank_source"] = "llm"
+        out.append(p)
+        ranked_ids.add(item["i"])
+    # Preserve any paths the model omitted (append in original order).
+    for i, p in enumerate(paths):
+        if i not in ranked_ids:
+            out.append(dict(p, rank_source="deterministic"))
+    return out
 
 
 # --------------------------------------------------------------------------- #
