@@ -54,6 +54,8 @@ redengine-mcp = "mcp_server:main"
 redengine-bench = "evals.bench:main"
 redengine-lessons = "lessons:main"
 redengine-exploits = "exploit_refs:main"
+redengine-roe = "roe:main"
+redengine-timeline = "timeline:main"
 
 # Flat layout: enumerate every shipped top-level module explicitly, plus the
 # modules/ code package and the docs/ knowledge base as importable DATA
@@ -88,6 +90,9 @@ py-modules = [
     "qualia",
     "lessons",
     "exploit_refs",
+    "cvss4",
+    "roe",
+    "timeline",
     "mcp_server",
     "ciphers",
     "ciphers_v4",

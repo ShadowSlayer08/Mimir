@@ -1,0 +1,33 @@
+# Eval scenario: an internet-facing Linux DMZ box (edge web + Tomcat + SSH +
+# FTP + SMTP). Exercises the OpenSSH CVE surface, the FTP cleartext gate, and
+# the web/api auto-promotion path from http/https services.
+
+fixture: tests/fixtures/linux_dmz.xml
+difficulty: medium
+notes: >
+  The classic DMZ profile. OpenSSH-7.4 must surface as high (public CVE with
+  known exploits); auto-promoted webapp path must be derived; FTP cleartext
+  must fire; no domain/lateral (single non-AD host).
+
+expected:
+  hosts_min: 1
+  findings_min: 5
+
+  findings_must_include:
+    - {title_contains: "openssh",    severity_min: high}
+    - {title_contains: "ftp",        severity_min: medium}
+    - {title_contains: "http",       severity_min: info}
+    - {title_contains: "smtp",       severity_min: info}
+
+  # A T1190 initial-access path from the auto-promoted http/https services.
+  techniques_must_include: [T1190]
+  path_kinds_must_include: [rce]
+
+  # NEGATIVE space — no AD or lateral inference on a single edge host.
+  path_kinds_must_not_include: [domain, lateral]
+  findings_must_not_include:
+    - {title_contains: "eternalblue"}
+    - {title_contains: "domain compromise"}
+
+  # The top action should focus on the OpenSSH CVE or the web-app surface.
+  top_action_title_regex: "openssh|web-app|rce|foothold"

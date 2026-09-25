@@ -34,6 +34,9 @@ reporting.py                  engagement report (MD/HTML) + ATT&CK Navigator lay
 ledger.py                     persistent SQLite engagement ledger (+ run diff, triage)
 enrich.py                     live CISA-KEV + FIRST-EPSS feeds (cached, offline-safe) for risk
 exploit_refs.py               CVE -> public exploit REFERENCES (links, never payloads); bundled seed + ExploitDB cache
+cvss4.py                      CVSS 4.0 vector + band per finding (deterministic, offline-safe)
+roe.py                        Rules of Engagement hard-gates — machine-checked filter of the staged queue (redengine-roe)
+timeline.py                   engagement timeline from the ledger (Markdown + SVG stripe) (redengine-timeline)
 apptargets.py                 AppSec: web-app targets (auto-promote http/https + operator --web)
 pentest_console.py            PySide6 console: Attack Paths + Modules tabs + staging queue
 attack_dashboard.py / red_engine.py   target-acquisition dashboard + single GUI entry (.exe)
@@ -98,6 +101,10 @@ python ledger.py eng.db triage <key> --status false_positive   # disposition a f
 # Lessons — what-worked ledger; feeds bounded bias into copilot ranking
 python lessons.py eng.db record --technique T1210 --context smb --outcome worked
 python copilot.py eng.json --top 10 --why --lessons eng.db     # apply the bias
+# Governance + reporting extras
+python roe.py eng.json engagement.roe.yml --json filtered.json  # apply ROE hard-gates + audit trail
+python timeline.py eng.db --svg tl.svg                # engagement timeline (Markdown to stdout + SVG stripe)
+python cvss4.py --severity critical --category "CVE (vulners)" --exploit  # inspect a CVSS 4.0 vector
 # Eval harness (CI-friendly measured coverage; optional A/B deterministic vs LLM)
 python -m evals.bench                                  # run all scenarios, exit non-zero on any miss
 python -m evals.bench --compare-llm --json out.json    # A/B against LLM-first (needs Ollama)

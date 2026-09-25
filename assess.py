@@ -706,7 +706,8 @@ def build_engagement_json(report, mods, paths, scan_meta):
                  "severity": f.get("severity", "info"), "category": f.get("category", ""),
                  "title": f.get("title", ""), "cve": f.get("cve", []),
                  "owasp": f.get("owasp", []), "cwe": f.get("cwe", []),
-                 "exploit_refs": f.get("exploit_refs", [])}
+                 "exploit_refs": f.get("exploit_refs", []),
+                 "cvss4": f.get("cvss4", ""), "cvss4_band": f.get("cvss4_band", "")}
                 for f in report.get("findings", [])]
 
     attack_paths = []
@@ -840,6 +841,12 @@ def main(argv=None):
             print(C.dim(f"  exploit references: {_n} finding(s) linked to public PoCs"))
     except Exception as e:                                              # pragma: no cover
         print(C.ylw(f"  exploit-refs unavailable: {e}"))
+    # CVSS 4.0 vector on every finding — deterministic, offline-safe.
+    try:
+        from cvss4 import enrich_findings as _enrich_cvss4
+        _enrich_cvss4(findings)
+    except Exception as e:                                              # pragma: no cover
+        print(C.ylw(f"  cvss4 unavailable: {e}"))
     report = build_report(hosts, meta, findings)
     print_inventory(report)
     print(C.bold("\n  Findings (by severity):"))

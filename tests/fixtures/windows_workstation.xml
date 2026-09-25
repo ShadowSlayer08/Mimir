@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<nmaprun scanner="nmap" version="7.94" args="nmap -sV -O --script vulners,vuln,default -oX" startstr="Mon Jul 06 2026">
+<host>
+<status state="up"/>
+<address addr="10.20.20.15" addrtype="ipv4"/>
+<hostnames><hostname name="ws-alice.corp.lab"/></hostnames>
+<ports>
+<port protocol="tcp" portid="135"><state state="open"/><service name="msrpc" product="Microsoft Windows RPC"/></port>
+<port protocol="tcp" portid="139"><state state="open"/><service name="netbios-ssn" product="Microsoft Windows netbios-ssn"/></port>
+<port protocol="tcp" portid="445"><state state="open"/><service name="microsoft-ds" product="Microsoft Windows Server 2019"/></port>
+<port protocol="tcp" portid="3389"><state state="open" reason="syn-ack"/>
+  <service name="ms-wbt-server" product="Microsoft Terminal Services"/>
+</port>
+<port protocol="tcp" portid="5985"><state state="open"/><service name="wsman" product="Microsoft HTTPAPI"/></port>
+</ports>
+<os><osmatch name="Microsoft Windows 10 22H2" accuracy="97"/></os>
+</host>
+<runstats><finished elapsed="18.02"/><hosts up="1" down="0" total="1"/></runstats>
+</nmaprun>

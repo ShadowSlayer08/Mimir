@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<nmaprun scanner="nmap" version="7.94" args="nmap -sV -O --script vulners,vuln,default -oX" startstr="Tue Jul 07 2026">
+<host>
+<status state="up"/>
+<address addr="203.0.113.10" addrtype="ipv4"/>
+<hostnames><hostname name="edge.acme.example"/></hostnames>
+<ports>
+<port protocol="tcp" portid="22"><state state="open" reason="syn-ack"/>
+  <service name="ssh" product="OpenSSH" version="7.4" extrainfo="protocol 2.0"><cpe>cpe:/a:openbsd:openssh:7.4</cpe></service>
+  <script id="vulners" output="cpe:/a:openbsd:openssh:7.4:">
+    <table key="cpe:/a:openbsd:openssh:7.4">
+      <table><elem key="type">cve</elem><elem key="id">CVE-2018-15473</elem><elem key="cvss">5.3</elem><elem key="is_exploit">true</elem></table>
+    </table>
+  </script>
+</port>
+<port protocol="tcp" portid="21"><state state="open" reason="syn-ack"/>
+  <service name="ftp" product="vsftpd" version="2.3.4"/></port>
+<port protocol="tcp" portid="80"><state state="open"/><service name="http" product="Apache httpd" version="2.4.7"/></port>
+<port protocol="tcp" portid="443"><state state="open"/>
+  <service name="https" product="Apache httpd" version="2.4.7" tunnel="ssl"/>
+</port>
+<port protocol="tcp" portid="8080"><state state="open"/>
+  <service name="http-alt" product="Apache Tomcat" version="9.0.31"/>
+</port>
+<port protocol="tcp" portid="25"><state state="open"/><service name="smtp" product="Postfix"/></port>
+</ports>
+<os><osmatch name="Linux 4.15" accuracy="96"/></os>
+</host>
+<runstats><finished elapsed="22.71"/><hosts up="1" down="0" total="1"/></runstats>
+</nmaprun>

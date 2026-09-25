@@ -1,0 +1,28 @@
+# Eval scenario: a domain-joined Windows workstation (no CVEs, service exposure
+# only). Exercises the smb / rdp / winrm modules and the "medium exposure"
+# surface that shows up on most corporate laptops.
+
+fixture: tests/fixtures/windows_workstation.xml
+difficulty: easy
+notes: >
+  Every corporate Windows box looks like this. If SMB / RDP / WinRM / NetBIOS
+  stop surfacing as network-exposed medium findings, something regressed.
+
+expected:
+  hosts_min: 1
+  findings_min: 3
+
+  findings_must_include:
+    - {title_contains: "smb (445)",       severity_min: medium}
+    - {title_contains: "netbios",         severity_min: medium}
+    - {title_contains: "rdp exposed",     severity_min: medium}
+    - {title_contains: "winrm",           severity_min: medium}
+
+  # No paths expected (no cred exposure, no DC → no lateral/domain seeds).
+  path_kinds_must_not_include: [domain, lateral]
+  paths_max: 1
+
+  # No CVE quick-wins expected.
+  findings_must_not_include:
+    - {severity: critical}
+    - {title_contains: "eternalblue"}
