@@ -34,6 +34,51 @@ import re
 from datetime import datetime, timezone
 
 _ATTACK_RE = re.compile(r"^T\d{4}(\.\d{3})?$")
+
+# Hard-guardrail: institutional TLD patterns that are PERMANENTLY out of scope,
+# regardless of what the ROE YAML allows. Scanning government / military /
+# educational / international-organisation infrastructure without an engagement
+# that explicitly authorises them is both ethically and legally problematic;
+# Vantage refuses to stage against these TLDs by default. Opt-in override:
+# set VANTAGE_ALLOW_INSTITUTIONAL=1 (operator takes responsibility).
+_INSTITUTIONAL_TLD = re.compile(
+    r"(^|\.)("
+    r"gov|gov\.[a-z]{2,3}|gob\.[a-z]{2,3}|gouv\.[a-z]{2,3}|govt\.[a-z]{2,3}|"
+    r"go\.[a-z]{2}|gv\.[a-z]{2}|"
+    r"mil|mil\.[a-z]{2,3}|"
+    r"edu|edu\.[a-z]{2,3}|ac\.[a-z]{2,3}|"
+    r"int"
+    r")$",
+    re.I,
+)
+
+
+def institutional_block_reason(host):
+    """Return a specific reason string if `host` matches a protected institutional
+    TLD, else "". Overridable via VANTAGE_ALLOW_INSTITUTIONAL=1."""
+    if os.environ.get("VANTAGE_ALLOW_INSTITUTIONAL", "").strip() in ("1", "true", "yes"):
+        return ""
+    if not host or _is_ip(host):
+        return ""
+    m = _INSTITUTIONAL_TLD.search(host.lower())
+    if not m:
+        return ""
+    tld = m.group(2)
+    label = (
+        "government" if tld.startswith(("gov", "gob", "gouv", "govt", "go.", "gv.")) else
+        "military" if tld.startswith("mil") else
+        "educational" if tld.startswith(("edu", "ac.")) else
+        "international-org"
+    )
+    return f"institutional_tld:{label}:{tld}"
+
+
+def _is_ip(host):
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return False
 _TIME_RE = re.compile(r"^(\d{1,2}):(\d{2})$")
 _DAY_MAP = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 
@@ -120,7 +165,10 @@ def _host_matches(host, rule):
 
 
 def _in_scope(host, rules):
-    """out_of_scope wins; missing in_scope is permissive."""
+    """Hard guardrail (.gov/.mil/.edu/.int) wins; then out_of_scope; then in_scope."""
+    reason = institutional_block_reason(host)
+    if reason:
+        return False, reason
     if any(_host_matches(host, r) for r in rules.get("out_of_scope") or []):
         return False, "out_of_scope"
     in_scope = rules.get("in_scope") or []

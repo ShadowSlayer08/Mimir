@@ -7,7 +7,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import webapi  # noqa: E402
 
-PAY = {"schema": "redengine.engagement",
+PAY = {"schema": "vantage.engagement",
        "meta": {"mode": "vapt", "totals": {"hosts": 1, "findings": 2},
                 "severity_counts": {"high": 1}},
        "hosts": [{"label": "h", "grade": "C"}],
@@ -20,7 +20,7 @@ def test_route_health_and_engagement():
     s, ct, body = webapi.route(PAY, "/health")
     assert s == 200 and json.loads(body)["status"] == "ok"
     s, ct, body = webapi.route(PAY, "/api/engagement")
-    assert s == 200 and json.loads(body)["schema"] == "redengine.engagement"
+    assert s == 200 and json.loads(body)["schema"] == "vantage.engagement"
 
 
 def test_route_slices_and_unknown():
@@ -40,7 +40,7 @@ def test_load_engagement_validates():
     try:
         with open(p, "w", encoding="utf-8") as fh:
             json.dump(PAY, fh)
-        assert webapi.load_engagement(p)["schema"] == "redengine.engagement"
+        assert webapi.load_engagement(p)["schema"] == "vantage.engagement"
         with open(p, "w", encoding="utf-8") as fh:
             json.dump({"nope": 1}, fh)
         try:

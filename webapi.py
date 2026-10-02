@@ -16,7 +16,7 @@ review box, pointed at an exported engagement file.
 
     python assess.py --from-xml scan.xml --yes --emit-json eng.json
     python webapi.py eng.json                 # -> http://127.0.0.1:8787
-    (installed:  redengine-web eng.json)
+    (installed:  vantage-web eng.json)
 """
 from __future__ import annotations
 
@@ -32,8 +32,8 @@ _SLICES = ("meta", "hosts", "findings", "attack_paths", "killchain")
 def load_engagement(path):
     with open(path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
-    if not isinstance(data, dict) or data.get("schema") != "redengine.engagement":
-        raise ValueError("not a redengine engagement JSON (run: assess --emit-json)")
+    if not isinstance(data, dict) or data.get("schema") != "vantage.engagement":
+        raise ValueError("not a vantage engagement JSON (run: assess --emit-json)")
     return data
 
 
@@ -62,7 +62,7 @@ def _j(obj):
 
 def make_handler(payload):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "redengine-web/1.0"
+        server_version = "vantage-web/1.0"
 
         def _send(self, status, ctype, body):
             self.send_response(status)
@@ -96,7 +96,7 @@ def serve(path, host="127.0.0.1", port=8787):
     payload = load_engagement(path)
     httpd = ThreadingHTTPServer((host, port), make_handler(payload))
     t = payload.get("meta", {}).get("totals", {})
-    print(f"[+] redengine web — read-only. Serving {os.path.basename(path)} "
+    print(f"[+] vantage web — read-only. Serving {os.path.basename(path)} "
           f"({t.get('hosts', 0)} hosts, {t.get('findings', 0)} findings) at "
           f"http://{host}:{port}  (Ctrl-C to stop)")
     try:
@@ -109,7 +109,7 @@ def serve(path, host="127.0.0.1", port=8787):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="redengine-web",
+    ap = argparse.ArgumentParser(prog="vantage-web",
                                  description="read-only REST API + web GUI over an "
                                              "engagement JSON (assess --emit-json)")
     ap.add_argument("engagement", help="path to an engagement JSON file")
@@ -128,7 +128,7 @@ def main(argv=None):
 
 INDEX_HTML = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>redengine — engagement</title>
+<title>vantage — engagement</title>
 <style>
 :root{color-scheme:light dark;--bg:#0e1116;--card:#161b22;--line:#21262d;--txt:#c9d1d9;--dim:#8b95a5;--accent:#4c8dff}
 *{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--txt)}
@@ -151,7 +151,7 @@ button.copy{background:transparent;border:1px solid var(--line);color:var(--txt)
 .gnode.start{background:rgba(76,141,255,.18);color:#4c8dff}.gnode.hi{background:rgba(229,72,77,.18);color:#e5484d}
 .arrow{display:inline-flex;flex-direction:column;align-items:center;color:var(--dim);line-height:1.1}.elabel{font-size:9px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style></head><body>
-<header><h1>redengine</h1><span id="meta" class="dim"></span></header>
+<header><h1>vantage</h1><span id="meta" class="dim"></span></header>
 <div class="banner">Read-only viewer — displays a staged engagement and copies commands. It executes nothing.</div>
 <main>
   <div class="cards" id="cards"></div>

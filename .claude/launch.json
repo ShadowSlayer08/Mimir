@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "redengine-web (web GUI + REST API)",
+      "name": "vantage-web (web GUI + REST API)",
       "runtimeExecutable": "python",
       "runtimeArgs": ["webapi.py", "C:/Users/pc/AppData/Local/Temp/claude/E--scripts-n-stuff-pentest-engine/322b67c6-5b5a-43f1-802f-56f3cf025b8a/scratchpad/eng.json", "--port", "8787"],
       "port": 8787,

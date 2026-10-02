@@ -1,13 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for the RedEngine pentest-engine thick client.
+# PyInstaller spec for the Vantage pentest-engine thick client.
 #
 # Cross-platform from ONE spec — run it on the TARGET OS (PyInstaller cannot
 # cross-compile):
-#     Windows -> dist/RedEngine.exe
-#     Linux   -> dist/RedEngine        (ELF)
-#     macOS   -> dist/RedEngine.app    (bundle)
+#     Windows -> dist/Vantage.exe
+#     Linux   -> dist/Vantage        (ELF)
+#     macOS   -> dist/Vantage.app    (bundle)
 #
-# Build:  python build_app.py          (or: pyinstaller red_engine.spec)
+# Build:  python build_app.py          (or: pyinstaller vantage.spec)
 # docs/ is bundled so the knowledge base loads from sys._MEIPASS at runtime.
 
 import os
@@ -34,7 +34,7 @@ hiddenimports = _engine_hidden + _modules_hidden
 
 # Optional app icon, only if one is present in the repo root.
 _icon = None
-for _cand in ("RedEngine.ico", "RedEngine.icns", "red_engine.ico", "red_engine.icns"):
+for _cand in ("Vantage.ico", "Vantage.icns", "vantage.ico", "vantage.icns"):
     if os.path.exists(_cand):
         _icon = _cand
         break
@@ -44,7 +44,7 @@ for _cand in ("RedEngine.ico", "RedEngine.icns", "red_engine.ico", "red_engine.i
 _use_upx = shutil.which("upx") is not None and sys.platform != "darwin"
 
 a = Analysis(
-    ['red_engine.py'],
+    ['vantage.py'],
     pathex=[],
     binaries=[],
     datas=[('docs', 'docs')],          # ship the whole knowledge base
@@ -61,7 +61,7 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz, a.scripts, a.binaries, a.zipfiles, a.datas, [],
-    name='RedEngine',                  # -> RedEngine.exe on Windows, RedEngine elsewhere
+    name='Vantage',                  # -> Vantage.exe on Windows, Vantage elsewhere
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -80,7 +80,7 @@ exe = EXE(
 if sys.platform == 'darwin':
     app = BUNDLE(
         exe,
-        name='RedEngine.app',
+        name='Vantage.app',
         icon=_icon,
-        bundle_identifier='com.redengine.thickclient',
+        bundle_identifier='com.vantage.thickclient',
     )

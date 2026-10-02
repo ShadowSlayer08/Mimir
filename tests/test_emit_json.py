@@ -31,7 +31,7 @@ def _engagement():
 def test_contract_top_level_keys():
     eng = _engagement()
     assert set(eng) >= {"schema", "meta", "hosts", "findings", "attack_paths", "killchain"}
-    assert eng["schema"] == "redengine.engagement"
+    assert eng["schema"] == "vantage.engagement"
     m = eng["meta"]
     assert m["offline"] is True and m["mode"] == "vapt"
     assert "STAGING ONLY" in m["boundary"]            # boundary stamped into every export
@@ -66,6 +66,6 @@ def test_emit_json_is_serializable():
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(eng, fh, indent=2)
         reloaded = json.load(open(path, encoding="utf-8"))
-        assert reloaded["schema"] == "redengine.engagement"
+        assert reloaded["schema"] == "vantage.engagement"
     finally:
         os.unlink(path)

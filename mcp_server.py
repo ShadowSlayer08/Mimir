@@ -21,7 +21,7 @@ standard MCP stdio framing. No third-party dependency.
     python mcp_server.py engagement.json --selftest   # offline dispatch check
 
 Wire into an MCP client (example, Claude Desktop config):
-    "redengine": {"command": "python", "args": ["mcp_server.py", "/path/eng.json"]}
+    "vantage": {"command": "python", "args": ["mcp_server.py", "/path/eng.json"]}
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ import json
 import sys
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_INFO = {"name": "redengine-engagement", "version": "1.0.0"}
+SERVER_INFO = {"name": "vantage-engagement", "version": "1.0.0"}
 
 BOUNDARY = ("STAGING ONLY — read-only surface. These tools report already-computed "
             "engagement data; they scan nothing and execute nothing. A human operator "

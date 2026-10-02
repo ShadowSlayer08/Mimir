@@ -35,19 +35,20 @@ ledger.py                     persistent SQLite engagement ledger (+ run diff, t
 enrich.py                     live CISA-KEV + FIRST-EPSS feeds (cached, offline-safe) for risk
 exploit_refs.py               CVE -> public exploit REFERENCES (links, never payloads); bundled seed + ExploitDB cache
 cvss4.py                      CVSS 4.0 vector + band per finding (deterministic, offline-safe)
-roe.py                        Rules of Engagement hard-gates — machine-checked filter of the staged queue (redengine-roe)
-timeline.py                   engagement timeline from the ledger (Markdown + SVG stripe) (redengine-timeline)
+roe.py                        Rules of Engagement hard-gates — machine-checked filter of the staged queue (vantage-roe)
+timeline.py                   engagement timeline from the ledger (Markdown + SVG stripe) (vantage-timeline)
+vault.py                      AES-256-GCM encrypted engagement credential vault (vantage-vault) — never auto-fills into staged commands
 apptargets.py                 AppSec: web-app targets (auto-promote http/https + operator --web)
 pentest_console.py            PySide6 console: Attack Paths + Modules tabs + staging queue
-attack_dashboard.py / red_engine.py   target-acquisition dashboard + single GUI entry (.exe)
-webapi.py                     read-only REST API + web GUI over the --emit-json contract (redengine-web)
-ad_graph.py                   ingest BloodHound/SoapHound/RustHound -> AD graph -> staged paths (redengine-adgraph)
-copilot.py                    engagement co-pilot: LLM-first ranking + score trace + lessons bias (redengine-copilot)
-lessons.py                    what-worked ledger — bounded copilot bias from past operator outcomes (redengine-lessons)
+attack_dashboard.py / vantage.py   target-acquisition dashboard + single GUI entry (.exe)
+webapi.py                     read-only REST API + web GUI over the --emit-json contract (vantage-web)
+ad_graph.py                   ingest BloodHound/SoapHound/RustHound -> AD graph -> staged paths (vantage-adgraph)
+copilot.py                    engagement co-pilot: LLM-first ranking + score trace + lessons bias (vantage-copilot)
+lessons.py                    what-worked ledger — bounded copilot bias from past operator outcomes (vantage-lessons)
 llm.py                        optional LOCAL LLM layer (Ollama); offline-safe, cloud models excluded
 qualia.py                     LLM-first qualitative decisions with deterministic fallback (every judgment call routes here)
-advisor.py                    local-LLM co-pilot: Planner/Narrator/Adviser — full tradecraft (redengine-advisor)
-mcp_server.py                 read-only MCP server over an engagement (redengine-mcp); query-only
+advisor.py                    local-LLM co-pilot: Planner/Narrator/Adviser — full tradecraft (vantage-advisor)
+mcp_server.py                 read-only MCP server over an engagement (vantage-mcp); query-only
 knowledge_loader.py           parses docs/ yaml knowledge blocks
 validate_kb.py                knowledge-base integrity check (CI)
 modules/                      generic doc-backed dispatcher + per-service fallbacks
@@ -57,7 +58,7 @@ modules/                      generic doc-backed dispatcher + per-service fallba
                               CWE + ATT&CK-Cloud/Containers/ICS)
 docs/                         the knowledge base (constitution, registry, maps, module methodology)
 tests/                        run_tests.py + fixtures (full_scan.xml, scan.xml, scan.nmap)
-evals/                        eval harness: scenario YAMLs + bench.py (redengine-bench) — measured coverage, A/B deterministic vs LLM
+evals/                        eval harness: scenario YAMLs + bench.py (vantage-bench) — measured coverage, A/B deterministic vs LLM
 ```
 
 ## Run / verify
@@ -73,13 +74,13 @@ python assess.py --from-xml tests/fixtures/full_scan.xml --yes --cloud aws --clo
 python attack_path_engine.py tests/fixtures/full_scan.xml
 python knowledge_loader.py                              # KB summary; run after editing docs/
 # GUIs (need a display; headless: --selftest)
-python red_engine.py tests/fixtures/full_scan.xml
+python vantage.py tests/fixtures/full_scan.xml
 # Packaging (cross-platform): pip/pipx OR a per-OS native binary
-pip install .[gui]                                     # redengine / redengine-cli / redengine-scan
-python build_app.py                                    # RedEngine.exe | RedEngine | RedEngine.app
+pip install .[gui]                                     # vantage / vantage-cli / vantage-scan
+python build_app.py                                    # Vantage.exe | Vantage | Vantage.app
 # Engagement JSON contract (feeds the read-only flutter/ desktop viewer)
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes --emit-json eng.json
-python webapi.py eng.json                              # read-only REST API + web GUI (redengine-web)
+python webapi.py eng.json                              # read-only REST API + web GUI (vantage-web)
 # AD attack-path graph (operator collects with BloodHound/SoapHound/RustHound; engine ingests + stages)
 python ad_graph.py bloodhound.zip --owned "DOMAIN USERS@DOMAIN"          # staged priv-esc paths to DA
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes --bloodhound bloodhound.zip  # merge AD paths
@@ -89,8 +90,8 @@ python llm.py --selftest                               # show reachable models +
 python advisor.py eng.json --summary --advise          # exec summary (narrator) + next-moves (adviser)
 python advisor.py eng.json --runbook rb.md             # operator runbook + AI-expanded playbook (Planner)
 python assess.py --from-xml tests/fixtures/full_scan.xml --yes --llm --emit-json eng.json --runbook rb.md
-python mcp_server.py eng.json --selftest               # read-only MCP surface (redengine-mcp); wire into an LLM client
-#   NOTE: Ollama data stays local; cloud (':cloud') models are excluded unless REDENGINE_LLM_ALLOW_CLOUD=1.
+python mcp_server.py eng.json --selftest               # read-only MCP surface (vantage-mcp); wire into an LLM client
+#   NOTE: Ollama data stays local; cloud (':cloud') models are excluded unless VANTAGE_LLM_ALLOW_CLOUD=1.
 #   If :11434 fails to bind on Windows (excluded-port-range), run `OLLAMA_HOST=127.0.0.1:21434 ollama serve`
 #   and point the engine at it: set OLLAMA_HOST=http://127.0.0.1:21434
 # Live risk enrichment + per-asset scoring + engagement ledger (run diff + triage)
@@ -113,7 +114,7 @@ python -m evals.bench --compare-llm --json out.json    # A/B against LLM-first (
 ## Conventions
 - CLI-first; every capability runs headless (`--no-gui` / `--selftest`).
 - GUI is PySide6 (Qt6), cross-platform (Windows/Linux/macOS). Ship via pip/pipx
-  (`pip install .[gui]` → `redengine`) or a native binary (`python build_app.py`).
+  (`pip install .[gui]` → `vantage`) or a native binary (`python build_app.py`).
 - Windows + Python 3.11: force UTF-8 stdio; avoid 3.12-only f-string syntax.
 - Keep built-in module fallbacks in sync so the engine runs if `docs/` is absent.
 - Validate after editing docs (`python validate_kb.py`).

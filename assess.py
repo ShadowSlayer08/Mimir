@@ -744,10 +744,10 @@ def build_engagement_json(report, mods, paths, scan_meta):
         stages = []
 
     return {
-        "schema": "redengine.engagement", "schema_version": 1,
+        "schema": "vantage.engagement", "schema_version": 1,
         "meta": {
             "generated": datetime.now(timezone.utc).isoformat(),
-            "tool": "redengine-cli", "engine_version": report.get("version", ""),
+            "tool": "vantage-cli", "engine_version": report.get("version", ""),
             "mode": scan_meta.get("mode", ""), "target": scan_meta.get("target", ""),
             "offline": offline, "source": source,
             "totals": report.get("totals", {}),
@@ -876,7 +876,7 @@ def main(argv=None):
     if _missing:
         print(C.ylw(f"  [tools] not on PATH ({len(_missing)}): " + ", ".join(_missing[:14])
                     + (" …" if len(_missing) > 14 else "")))
-        print(C.dim("  (install these, or set REDENGINE_* paths; methodology is still shown as reference)"))
+        print(C.dim("  (install these, or set VANTAGE_* paths; methodology is still shown as reference)"))
 
     # Opt-in: run the non-intrusive ENUMERATION checks in containers (not exploits).
     if args.run_containers:

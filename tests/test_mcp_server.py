@@ -33,7 +33,7 @@ ENG = {
 def test_initialize_and_serverinfo():
     resp = m.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}, ENG)
     assert resp["result"]["protocolVersion"] == m.PROTOCOL_VERSION
-    assert resp["result"]["serverInfo"]["name"] == "redengine-engagement"
+    assert resp["result"]["serverInfo"]["name"] == "vantage-engagement"
     assert "STAGING ONLY" in resp["result"]["instructions"]
 
 

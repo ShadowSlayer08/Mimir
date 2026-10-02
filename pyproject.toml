@@ -3,14 +3,14 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "redengine"
-version = "5.0.0"
-description = "Knowledge-driven pentest ORCHESTRATION engine (methodology + staging only) for authorized / lab / CTF use."
+name = "vantage"
+version = "6.0.0"
+description = "Vantage — knowledge-driven pentest orchestration engine (methodology + staging only) for authorized / lab / CTF / VAPT / red-team use."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Proprietary - authorized engagement use only" }
-authors = [{ name = "RedEngine" }]
-keywords = ["pentest", "nmap", "attack-paths", "mitre-attack", "orchestration", "methodology"]
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Vantage" }]
+keywords = ["pentest", "vapt", "red-team", "nmap", "attack-paths", "mitre-attack", "orchestration", "methodology", "staging"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -19,6 +19,7 @@ classifiers = [
     "Environment :: Console",
     "Topic :: Security",
     "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
 ]
 
 # Core runtime: deliberately minimal. The headless / CLI engine runs on these
@@ -31,7 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# GUI thick client. Required by the redengine console script: pip install redengine[gui]
+# GUI thick client. Required by the vantage console script: pip install vantage[gui]
 gui = ["PySide6>=6.5"]
 # Operator red-team toolkit (staging/handoff helpers; the engine never auto-runs them).
 redteam = ["impacket", "pymetasploit3", "python-nmap", "beautifulsoup4"]
@@ -42,20 +43,26 @@ rich = ["rich>=13"]
 # Convenience: everything an operator workstation wants.
 all = ["PySide6>=6.5", "impacket", "pymetasploit3", "python-nmap", "beautifulsoup4", "rich>=13"]
 
+[project.urls]
+Homepage = "https://github.com/your-org/vantage"
+Repository = "https://github.com/your-org/vantage"
+Issues = "https://github.com/your-org/vantage/issues"
+
 [project.scripts]
-redengine = "red_engine:main"
-redengine-cli = "assess:main"
-redengine-scan = "nmap_analyzer:main"
-redengine-web = "webapi:main"
-redengine-adgraph = "ad_graph:main"
-redengine-copilot = "copilot:main"
-redengine-advisor = "advisor:main"
-redengine-mcp = "mcp_server:main"
-redengine-bench = "evals.bench:main"
-redengine-lessons = "lessons:main"
-redengine-exploits = "exploit_refs:main"
-redengine-roe = "roe:main"
-redengine-timeline = "timeline:main"
+vantage = "vantage_app:main"
+vantage-cli = "assess:main"
+vantage-scan = "nmap_analyzer:main"
+vantage-web = "webapi:main"
+vantage-adgraph = "ad_graph:main"
+vantage-copilot = "copilot:main"
+vantage-advisor = "advisor:main"
+vantage-mcp = "mcp_server:main"
+vantage-bench = "evals.bench:main"
+vantage-lessons = "lessons:main"
+vantage-exploits = "exploit_refs:main"
+vantage-roe = "roe:main"
+vantage-timeline = "timeline:main"
+vantage-vault = "vault:main"
 
 # Flat layout: enumerate every shipped top-level module explicitly, plus the
 # modules/ code package and the docs/ knowledge base as importable DATA
@@ -63,7 +70,7 @@ redengine-timeline = "timeline:main"
 # tests/ are intentionally omitted from the distribution.
 [tool.setuptools]
 py-modules = [
-    "red_engine",
+    "vantage_app",
     "attack_dashboard",
     "pentest_console",
     "assess",
@@ -93,6 +100,7 @@ py-modules = [
     "cvss4",
     "roe",
     "timeline",
+    "vault",
     "mcp_server",
     "ciphers",
     "ciphers_v4",
