@@ -14,6 +14,8 @@ attack paths are stored per run. Lets an operator see what changed between round
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 
@@ -199,6 +201,86 @@ def list_triage(db_path):
         return [dict(zip(cols, r)) for r in rows]
     finally:
         con.close()
+
+
+# --------------------------------------------------------------------------- #
+# Checkpoint / Replay — ARES-inspired engagement session snapshots.
+# A checkpoint is a timestamped JSON blob (gzipped) stored in the ledger DB.
+# Operators create one at engagement milestones; replay reconstructs state so
+# a shift hand-off continues from the exact point the last operator stopped.
+_CHECKPOINT_SCHEMA = """
+CREATE TABLE IF NOT EXISTS checkpoints(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, label TEXT, engagement TEXT,
+  operator TEXT, payload BLOB);
+"""
+
+
+def _ensure_checkpoint_schema(con):
+    con.executescript(_CHECKPOINT_SCHEMA)
+
+
+def checkpoint_save(db_path, label, payload, *, engagement="", operator=""):
+    """Persist an engagement snapshot (gzipped JSON) with a label. Returns the id."""
+    import gzip
+    con = _connect(db_path)
+    _ensure_checkpoint_schema(con)
+    try:
+        blob = gzip.compress(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+        cur = con.execute(
+            "INSERT INTO checkpoints(ts,label,engagement,operator,payload) "
+            "VALUES(?,?,?,?,?)",
+            (_now(), str(label or "")[:200], engagement, operator, blob))
+        con.commit()
+        return cur.lastrowid
+    finally:
+        con.close()
+
+
+def checkpoint_list(db_path):
+    """List checkpoints (id, ts, label, engagement, operator) — payload omitted."""
+    if not os.path.exists(db_path):
+        return []
+    con = _connect(db_path)
+    _ensure_checkpoint_schema(con)
+    try:
+        return [dict(id=r[0], ts=r[1], label=r[2], engagement=r[3], operator=r[4])
+                for r in con.execute("SELECT id,ts,label,engagement,operator "
+                                     "FROM checkpoints ORDER BY id DESC").fetchall()]
+    finally:
+        con.close()
+
+
+def checkpoint_load(db_path, cid):
+    """Decompress + decode one checkpoint. Returns the payload dict."""
+    import gzip
+    con = _connect(db_path)
+    _ensure_checkpoint_schema(con)
+    try:
+        row = con.execute("SELECT payload FROM checkpoints WHERE id=?",
+                          (int(cid),)).fetchone()
+    finally:
+        con.close()
+    if not row:
+        raise KeyError(cid)
+    return json.loads(gzip.decompress(row[0]).decode("utf-8"))
+
+
+def checkpoint_latest(db_path, label=None):
+    """Return the most-recent checkpoint id (optionally filtered by label), or None."""
+    if not os.path.exists(db_path):
+        return None
+    con = _connect(db_path)
+    _ensure_checkpoint_schema(con)
+    try:
+        if label:
+            row = con.execute("SELECT id FROM checkpoints WHERE label=? "
+                              "ORDER BY id DESC LIMIT 1", (str(label),)).fetchone()
+        else:
+            row = con.execute("SELECT id FROM checkpoints ORDER BY id DESC "
+                              "LIMIT 1").fetchone()
+    finally:
+        con.close()
+    return row[0] if row else None
 
 
 def history(db_path):

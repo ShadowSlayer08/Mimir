@@ -192,14 +192,49 @@ def parse_hypervisor(values):
     return out
 
 
+def parse_web_recon(values):
+    """Operator web-recon targets: --web-recon <domain|url>. Attack-surface recon
+    (subdomain enum + takeover, hidden vhost, CDN/WAF origin, GraphQL, cache poisoning)."""
+    out = []
+    for v in (values or []):
+        for tok in re.split(r"[,\s]+", str(v).strip()):
+            if not tok:
+                continue
+            host = tok
+            if host.startswith(("http://", "https://")):
+                host = host.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
+            out.append({"kind": "web_recon", "ref": tok, "label": host, "host": host,
+                        "source": "operator"})
+    return out
+
+
+def parse_ai_target(values):
+    """Operator AI/LLM targets: --ai-target <url|provider:model>."""
+    out = []
+    for v in (values or []):
+        for tok in re.split(r"[,\s]+", str(v).strip()):
+            if not tok:
+                continue
+            host = tok
+            if "://" in host:
+                host = host.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
+            elif ":" in host:
+                host = host.split(":", 1)[0]                    # provider:model -> provider
+            out.append({"kind": "ai_target", "ref": tok, "label": tok, "host": host,
+                        "source": "operator"})
+    return out
+
+
 def app_targets(report, web=(), api=(), mobile=(), thick=(), cloud=(),
-                wireless=(), k8s=(), source=(), identity=(), hypervisor=()):
+                wireless=(), k8s=(), source=(), identity=(), hypervisor=(),
+                web_recon=(), ai_target=()):
     """Combined, de-duplicated application targets (auto-promoted web + operator inputs)."""
     seen, out = set(), []
     for t in (web_targets_from_report(report) + parse_web(web) + parse_api(api)
               + parse_mobile(mobile) + parse_thick(thick) + parse_cloud(cloud)
               + parse_wireless(wireless) + parse_k8s(k8s) + parse_source(source)
-              + parse_identity(identity) + parse_hypervisor(hypervisor)):
+              + parse_identity(identity) + parse_hypervisor(hypervisor)
+              + parse_web_recon(web_recon) + parse_ai_target(ai_target)):
         if t["kind"] in ("web", "api"):
             key = (t["kind"], t["scheme"], t["host"].lower(), t["port"])
         else:

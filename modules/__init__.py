@@ -287,6 +287,8 @@ def dispatch_apps(app_targets, report, mode=None, docs_dir=None):
     from .source import SourceModule
     from .identity import IdentityModule
     from .hypervisor import HypervisorModule
+    from .web_recon import WebReconModule
+    from .ai_target import AITargetModule
     by_host = defaultdict(list)
     for f in report.get("findings", []):
         by_host[f["host"]].append(f)
@@ -294,7 +296,18 @@ def dispatch_apps(app_targets, report, mode=None, docs_dir=None):
                 "mobile": MobileModule(docs_dir), "thick": ThickClientModule(docs_dir),
                 "cloud": CloudModule(docs_dir), "wireless": WirelessModule(docs_dir),
                 "k8s": KubernetesModule(docs_dir), "source": SourceModule(docs_dir),
-                "identity": IdentityModule(docs_dir), "hypervisor": HypervisorModule(docs_dir)}
+                "identity": IdentityModule(docs_dir), "hypervisor": HypervisorModule(docs_dir),
+                "web_recon": WebReconModule(docs_dir), "ai_target": AITargetModule(docs_dir)}
+    # Third-party plugins — discovered via the `vantage.modules` entry-point group.
+    # Built-ins win on name collision; a broken plugin never breaks the engine.
+    try:
+        from sdk import discover as _discover_plugins
+        for pname, pinst in _discover_plugins(docs_dir):
+            if pname in handlers:
+                continue
+            handlers[pname] = pinst
+    except Exception:                                              # pragma: no cover
+        pass
     results = []
     for t in (app_targets or []):
         h = handlers.get(t.get("kind"))

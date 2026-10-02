@@ -63,6 +63,9 @@ vantage-exploits = "exploit_refs:main"
 vantage-roe = "roe:main"
 vantage-timeline = "timeline:main"
 vantage-vault = "vault:main"
+vantage-opsec = "opsec:main"
+vantage-ct = "ct_monitor:main"
+vantage-roe-parse = "roe_parse:main"
 
 # Flat layout: enumerate every shipped top-level module explicitly, plus the
 # modules/ code package and the docs/ knowledge base as importable DATA
@@ -101,6 +104,9 @@ py-modules = [
     "roe",
     "timeline",
     "vault",
+    "opsec",
+    "ct_monitor",
+    "roe_parse",
     "mcp_server",
     "ciphers",
     "ciphers_v4",
@@ -109,7 +115,7 @@ py-modules = [
 # 'docs' / 'docs.modules' are data-only packages carrying the Markdown KB so it
 # ships in the wheel and is addressable via importlib.resources.files('docs').
 # Requires docs/__init__.py and docs/modules/__init__.py marker files.
-packages = ["modules", "docs", "docs.modules", "docs.appsec", "evals"]
+packages = ["modules", "docs", "docs.modules", "docs.appsec", "evals", "sdk"]
 include-package-data = true
 
 [tool.setuptools.package-data]

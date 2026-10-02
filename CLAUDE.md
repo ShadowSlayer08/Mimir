@@ -38,6 +38,10 @@ cvss4.py                      CVSS 4.0 vector + band per finding (deterministic,
 roe.py                        Rules of Engagement hard-gates — machine-checked filter of the staged queue (vantage-roe)
 timeline.py                   engagement timeline from the ledger (Markdown + SVG stripe) (vantage-timeline)
 vault.py                      AES-256-GCM encrypted engagement credential vault (vantage-vault) — never auto-fills into staged commands
+opsec.py                      per-step noise score + profile ceiling (stealth/normal/aggressive) (vantage-opsec)
+ct_monitor.py                 Certificate Transparency lookup (crt.sh; cached + offline-safe) (vantage-ct)
+roe_parse.py                  LLM-parse PDF/TXT/MD engagement doc -> structured ROE YAML (vantage-roe-parse)
+sdk/                          plugin SDK: BaseModule / ModuleParams / TestHarness; `vantage.modules` entry-point group
 apptargets.py                 AppSec: web-app targets (auto-promote http/https + operator --web)
 pentest_console.py            PySide6 console: Attack Paths + Modules tabs + staging queue
 attack_dashboard.py / vantage.py   target-acquisition dashboard + single GUI entry (.exe)
@@ -54,8 +58,11 @@ validate_kb.py                knowledge-base integrity check (CI)
 modules/                      generic doc-backed dispatcher + per-service fallbacks
                               (+ target-driven AppSec: web_app / api / mobile / thick
                               [win/linux/macos] / cloud / wireless / kubernetes / source
-                              / identity / hypervisor — OWASP WSTG/API-Top-10/MASVS +
-                              CWE + ATT&CK-Cloud/Containers/ICS)
+                              / identity / hypervisor / web_recon [subdomain enum +
+                              takeover, hidden vhost, CDN origin, GraphQL, cache
+                              poisoning] / ai_target [OWASP LLM Top 10] — OWASP WSTG/
+                              API-Top-10/MASVS/LLM-Top-10 + CWE + ATT&CK-Cloud/
+                              Containers/ICS; 3rd-party plugins via `vantage.modules`)
 docs/                         the knowledge base (constitution, registry, maps, module methodology)
 tests/                        run_tests.py + fixtures (full_scan.xml, scan.xml, scan.nmap)
 evals/                        eval harness: scenario YAMLs + bench.py (vantage-bench) — measured coverage, A/B deterministic vs LLM

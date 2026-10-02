@@ -545,6 +545,12 @@ def build_parser():
                     help="SaaS identity target: entra|m365|okta|gworkspace|adfs[:tenant] (repeatable).")
     ap.add_argument("--hypervisor", action="append", default=[],
                     help="hypervisor target: esxi|vcenter|proxmox|xen|hyperv[:host] (repeatable).")
+    ap.add_argument("--web-recon", dest="web_recon", action="append", default=[],
+                    help="web attack-surface recon target: <domain|url> — subdomain enum + takeover, "
+                         "hidden vhost, CDN/WAF origin, GraphQL, cache poisoning (repeatable).")
+    ap.add_argument("--ai-target", dest="ai_target", action="append", default=[],
+                    help="AI/LLM target: <url|provider:model> — OWASP LLM Top 10 methodology "
+                         "(prompt injection, jailbreak, output handling, tool/RAG abuse) (repeatable).")
     ap.add_argument("--bloodhound",
                     help="BloodHound/SoapHound/RustHound export (zip/dir/json) -> staged AD paths")
     ap.add_argument("--owned", action="append", default=[],
@@ -858,7 +864,8 @@ def main(argv=None):
     apps = _app_targets(report, web=args.web, api=args.api, mobile=args.mobile,
                         thick=args.thick, cloud=args.cloud, wireless=args.wireless,
                         k8s=args.k8s, source=args.source, identity=args.identity,
-                        hypervisor=args.hypervisor)
+                        hypervisor=args.hypervisor,
+                        web_recon=args.web_recon, ai_target=args.ai_target)
     if apps:
         srcs = ", ".join(t["ref"] for t in apps[:6]) + (" ..." if len(apps) > 6 else "")
         print(C.dim(f"  {len(apps)} application target(s) for AppSec methodology: {srcs}"))

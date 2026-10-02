@@ -86,10 +86,54 @@ def _from_finding(f):
             "trace": _trace(fw, comp, f"confirmed {sev} exposure on {tgt} -> likely direct foothold")}
 
 
-def _deterministic_recommend(findings, paths, top=12):
+# Goal-directed strategy — ARES-inspired. The operator picks a mission goal and
+# the ranker up-weights actions whose category / technique id advances toward it.
+# Deterministic; never overrides validator gates. +N bonus is bounded.
+_GOAL_BONUS = 25
+_GOAL_RULES = {
+    "domain_admin":   {"cat": {"objective"}, "tech": {"T1003", "T1098", "T1482",
+                                                      "T1550", "T1550.002", "T1558",
+                                                      "T1558.003"}},
+    "full_compromise":{"cat": {"objective", "foothold"},
+                       "tech": {"T1003", "T1068", "T1210", "T1190", "T1098"}},
+    "foothold":       {"cat": {"foothold", "quick-win"}, "tech": {"T1190", "T1210"}},
+    "data_exfil":     {"cat": {"objective"}, "tech": {"T1005", "T1041", "T1567"}},
+    "ransomware_resilience": {"cat": {"quick-win"}, "tech": {"T1490", "T1485", "T1486"}},
+    "wifi_breach":    {"cat": {"foothold"}, "tech": {"T1040", "T1557", "T1110.002"}},
+}
+
+
+def _apply_goal_bonus(actions, goal):
+    """Up-weight actions that advance the stated engagement goal. Non-destructive:
+    attaches `goal_bonus` to trace; the caller re-sorts."""
+    rules = _GOAL_RULES.get((goal or "").strip().lower()) if goal else None
+    if not rules:
+        return actions
+    out = []
+    for a in actions or []:
+        bonus = 0
+        if (a.get("category") or "").lower() in rules["cat"]:
+            bonus += _GOAL_BONUS
+        if (a.get("attack") or "").strip() in rules["tech"]:
+            bonus += _GOAL_BONUS
+        if bonus:
+            b = dict(a)
+            b["score"] = int(b.get("score", 0)) + bonus
+            tr = dict(b.get("trace") or {})
+            tr["goal_bonus"] = bonus
+            tr["goal"] = goal
+            b["trace"] = tr
+            out.append(b)
+        else:
+            out.append(a)
+    return out
+
+
+def _deterministic_recommend(findings, paths, top=12, *, goal=None):
     """Weighted-score ranking (the offline fallback). Same shape as `recommend`."""
     actions = [_from_path(p) for p in (paths or [])]
     actions += [a for a in (_from_finding(f) for f in (findings or [])) if a]
+    actions = _apply_goal_bonus(actions, goal)
     actions.sort(key=lambda a: (-a["score"], a["category"], a["title"]))
     out, seen = [], set()
     for a in actions:
@@ -120,21 +164,25 @@ def _candidate_pool(findings, paths):
     return out
 
 
-def _rank_prompt(pool, top):
+def _rank_prompt(pool, top, goal=None):
     """Ask the local model to re-rank the pool by objective-proximity, confidence
     and blast radius, and to explain its reasoning for each action."""
     cards = [{"i": i, "category": a["category"], "title": a["title"],
               "why": a["why"], "attack": a.get("attack", ""),
               "source": a.get("source", ""), "det_score": a["score"]}
              for i, a in enumerate(pool)]
+    goal_hint = ""
+    if goal and goal in _GOAL_RULES:
+        goal_hint = (f" The operator's goal is '{goal}'; prioritise actions that "
+                     "advance toward it, but never fabricate steps not in the candidate list.")
     return (
         f"Re-rank the following authorized-engagement action candidates. Return the "
         f"top {top} in priority order for the operator. Prioritize objective proximity "
         "(paths that reach a Domain Admin / high-value target rank first), then "
-        "confidence, then blast radius, then low effort. "
+        f"confidence, then blast radius, then low effort.{goal_hint} "
         "Return JSON only: "
         '{"ranked":[{"i":<original_index>,"score":<0-100>,"why":"<one-sentence rationale>"}]}\n\n'
-        + qualia.compact({"top": top, "candidates": cards})
+        + qualia.compact({"top": top, "candidates": cards, "goal": goal or ""})
     )
 
 
@@ -176,21 +224,24 @@ def _apply_ranking(pool, ranking, top):
     return out
 
 
-def recommend(findings, paths, top=12, *, lessons_db=None):
+def recommend(findings, paths, top=12, *, lessons_db=None, goal=None):
     """Ranked next-best-action list. LLM-first via qualia; falls back to the
     deterministic weighted ranker when Ollama is offline or returns bad output.
 
+    `goal` applies a bounded +25 bonus per matching dimension (category or
+    technique id) toward one of: domain_admin / full_compromise / foothold /
+    data_exfil / ransomware_resilience / wifi_breach. Non-matching actions are
+    untouched; never drops candidates.
+
     When `lessons_db` (SQLite path) is provided, applies bounded score bias from
-    past operator outcomes (see lessons.py) BEFORE truncating to `top` — so
-    consistently-successful (technique, ctx) combos rise, consistently-failing
-    ones sink. Never drops candidates; only re-orders."""
+    past operator outcomes (see lessons.py) BEFORE truncating to `top`."""
     pool = _candidate_pool(findings, paths)
     if not pool:
         return []
-    prompt = _rank_prompt(pool, top)
+    prompt = _rank_prompt(pool, top, goal=goal)
 
     def _fallback():
-        return _deterministic_recommend(findings, paths, top)
+        return _deterministic_recommend(findings, paths, top, goal=goal)
 
     result = qualia.decide(
         "rank-actions", prompt, _fallback, role="adviser",
@@ -210,9 +261,9 @@ def recommend(findings, paths, top=12, *, lessons_db=None):
     return actions
 
 
-def recommend_from_engagement(eng, top=12, *, lessons_db=None):
+def recommend_from_engagement(eng, top=12, *, lessons_db=None, goal=None):
     return recommend(eng.get("findings", []), eng.get("attack_paths", []), top,
-                     lessons_db=lessons_db)
+                     lessons_db=lessons_db, goal=goal)
 
 
 def main(argv=None):
@@ -228,10 +279,14 @@ def main(argv=None):
     ap.add_argument("--lessons", metavar="DB",
                     help="engagement ledger SQLite path — apply what-worked bias "
                          "(record outcomes with lessons.py)")
+    ap.add_argument("--goal", choices=sorted(_GOAL_RULES.keys()),
+                    help="mission goal — up-weights actions that advance toward it "
+                         "(bounded +25 bonus per matching category / technique)")
     args = ap.parse_args(argv)
     with open(args.engagement, encoding="utf-8") as fh:
         eng = json.load(fh)
-    recs = recommend_from_engagement(eng, args.top, lessons_db=args.lessons)
+    recs = recommend_from_engagement(eng, args.top, lessons_db=args.lessons,
+                                     goal=args.goal)
     print(f"[+] {len(recs)} recommended next action(s):\n")
     for a in recs:
         print(f"  #{a['rank']:<2} [{a['score']:>3}] ({a['category']}) {a['title']}")
