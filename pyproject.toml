@@ -3,13 +3,13 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vantage"
+name = "mimir"
 version = "6.0.0"
-description = "Vantage — knowledge-driven pentest orchestration engine (methodology + staging only) for authorized / lab / CTF / VAPT / red-team use."
+description = "Mimir — knowledge-driven pentest orchestration engine (methodology + staging only) for authorized / lab / CTF / VAPT / red-team use."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "AGPL-3.0-or-later" }
-authors = [{ name = "Vantage" }]
+authors = [{ name = "Mimir" }]
 keywords = ["pentest", "vapt", "red-team", "nmap", "attack-paths", "mitre-attack", "orchestration", "methodology", "staging"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# GUI thick client. Required by the vantage console script: pip install vantage[gui]
+# GUI thick client. Required by the mimir console script: pip install mimir[gui]
 gui = ["PySide6>=6.5"]
 # Operator red-team toolkit (staging/handoff helpers; the engine never auto-runs them).
 redteam = ["impacket", "pymetasploit3", "python-nmap", "beautifulsoup4"]
@@ -44,28 +44,28 @@ rich = ["rich>=13"]
 all = ["PySide6>=6.5", "impacket", "pymetasploit3", "python-nmap", "beautifulsoup4", "rich>=13"]
 
 [project.urls]
-Homepage = "https://github.com/your-org/vantage"
-Repository = "https://github.com/your-org/vantage"
-Issues = "https://github.com/your-org/vantage/issues"
+Homepage = "https://github.com/your-org/mimir"
+Repository = "https://github.com/your-org/mimir"
+Issues = "https://github.com/your-org/mimir/issues"
 
 [project.scripts]
-vantage = "vantage_app:main"
-vantage-cli = "assess:main"
-vantage-scan = "nmap_analyzer:main"
-vantage-web = "webapi:main"
-vantage-adgraph = "ad_graph:main"
-vantage-copilot = "copilot:main"
-vantage-advisor = "advisor:main"
-vantage-mcp = "mcp_server:main"
-vantage-bench = "evals.bench:main"
-vantage-lessons = "lessons:main"
-vantage-exploits = "exploit_refs:main"
-vantage-roe = "roe:main"
-vantage-timeline = "timeline:main"
-vantage-vault = "vault:main"
-vantage-opsec = "opsec:main"
-vantage-ct = "ct_monitor:main"
-vantage-roe-parse = "roe_parse:main"
+mimir = "mimir_app:main"
+mimir-cli = "assess:main"
+mimir-scan = "nmap_analyzer:main"
+mimir-web = "webapi:main"
+mimir-adgraph = "ad_graph:main"
+mimir-copilot = "copilot:main"
+mimir-advisor = "advisor:main"
+mimir-mcp = "mcp_server:main"
+mimir-bench = "evals.bench:main"
+mimir-lessons = "lessons:main"
+mimir-exploits = "exploit_refs:main"
+mimir-roe = "roe:main"
+mimir-timeline = "timeline:main"
+mimir-vault = "vault:main"
+mimir-opsec = "opsec:main"
+mimir-ct = "ct_monitor:main"
+mimir-roe-parse = "roe_parse:main"
 
 # Flat layout: enumerate every shipped top-level module explicitly, plus the
 # modules/ code package and the docs/ knowledge base as importable DATA
@@ -73,7 +73,7 @@ vantage-roe-parse = "roe_parse:main"
 # tests/ are intentionally omitted from the distribution.
 [tool.setuptools]
 py-modules = [
-    "vantage_app",
+    "mimir_app",
     "attack_dashboard",
     "pentest_console",
     "assess",

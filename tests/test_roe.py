@@ -149,7 +149,7 @@ def test_empty_rules_is_permissive():
 # ---- Hard-guardrail TLD block (redamon-inspired) ------------------------- #
 def test_institutional_tld_blocks_regardless_of_in_scope():
     """.gov/.mil/.edu/.int are hard-blocked even if the ROE lists them in_scope.
-    An operator who really needs them must set VANTAGE_ALLOW_INSTITUTIONAL=1."""
+    An operator who really needs them must set MIMIR_ALLOW_INSTITUTIONAL=1."""
     paths = [
         {"id": "P-1", "kind": "rce", "hosts": ["mail.whitehouse.gov"],
          "steps": [{"technique_id": "T1190", "host": "mail.whitehouse.gov"}]},
@@ -174,22 +174,22 @@ def test_institutional_tld_blocks_regardless_of_in_scope():
 
 
 def test_institutional_block_override_opt_in():
-    """VANTAGE_ALLOW_INSTITUTIONAL=1 explicitly lets the operator proceed —
+    """MIMIR_ALLOW_INSTITUTIONAL=1 explicitly lets the operator proceed —
     they accept responsibility. Scope rules then apply normally."""
     import os
     paths = [{"id": "P-X", "kind": "rce", "hosts": ["authorized.example.gov"],
               "steps": [{"technique_id": "T1190", "host": "authorized.example.gov"}]}]
-    saved = os.environ.get("VANTAGE_ALLOW_INSTITUTIONAL")
+    saved = os.environ.get("MIMIR_ALLOW_INSTITUTIONAL", os.environ.get("VANTAGE_ALLOW_INSTITUTIONAL", os.environ.get("VANTAGE_ALLOW_INSTITUTIONAL")))
     try:
-        os.environ["VANTAGE_ALLOW_INSTITUTIONAL"] = "1"
+        os.environ["MIMIR_ALLOW_INSTITUTIONAL"] = "1"
         kept, _ = roe.filter_engagement(roe._normalise({"in_scope": [".example.gov"]}),
                                         paths, [])
         assert len(kept["paths"]) == 1
     finally:
         if saved is None:
-            os.environ.pop("VANTAGE_ALLOW_INSTITUTIONAL", None)
+            os.environ.pop("MIMIR_ALLOW_INSTITUTIONAL", None)
         else:
-            os.environ["VANTAGE_ALLOW_INSTITUTIONAL"] = saved
+            os.environ["MIMIR_ALLOW_INSTITUTIONAL"] = saved
 
 
 def test_institutional_reason_includes_category():
@@ -230,14 +230,14 @@ def test_regular_commercial_hosts_pass():
 
 
 def test_institutional_opt_in_override(monkeypatch=None):
-    """Explicit operator opt-in via VANTAGE_ALLOW_INSTITUTIONAL=1 bypasses the block."""
+    """Explicit operator opt-in via MIMIR_ALLOW_INSTITUTIONAL=1 bypasses the block."""
     import os
-    saved = os.environ.get("VANTAGE_ALLOW_INSTITUTIONAL", "")
+    saved = os.environ.get("MIMIR_ALLOW_INSTITUTIONAL", os.environ.get("VANTAGE_ALLOW_INSTITUTIONAL", ""))
     try:
-        os.environ["VANTAGE_ALLOW_INSTITUTIONAL"] = "1"
+        os.environ["MIMIR_ALLOW_INSTITUTIONAL"] = "1"
         assert roe.institutional_block_reason("mit.edu") == ""
     finally:
         if saved:
-            os.environ["VANTAGE_ALLOW_INSTITUTIONAL"] = saved
+            os.environ["MIMIR_ALLOW_INSTITUTIONAL"] = saved
         else:
-            os.environ.pop("VANTAGE_ALLOW_INSTITUTIONAL", None)
+            os.environ.pop("MIMIR_ALLOW_INSTITUTIONAL", None)

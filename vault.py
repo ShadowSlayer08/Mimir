@@ -4,7 +4,7 @@ vault.py — AES-256-GCM encrypted credential vault for an engagement.
 
 Authorized / lab / CTF / VAPT / red-team use only.
 
-Pattern adopted from ARES (Mafifrizi/ARES, MIT) and adapted for Vantage's
+Pattern adopted from ARES (Mafifrizi/ARES, MIT) and adapted for Mimir's
 staging-only boundary. A small, local-only, password-sealed JSON file that
 holds credentials the operator harvests DURING an engagement — hashes,
 tickets, API keys, test-tenant creds — so they aren't scattered across tmux
@@ -47,7 +47,7 @@ try:
     from enrich import _cache_file as _dir_file
 except Exception:                                              # pragma: no cover
     def _dir_file(name):
-        base = os.path.join(os.path.expanduser("~"), ".cache", "vantage")
+        base = os.path.join(os.path.expanduser("~"), ".cache", "mimir")
         os.makedirs(base, exist_ok=True)
         return os.path.join(base, name)
 
@@ -106,7 +106,7 @@ def _load_envelope(path):
     with open(path, encoding="utf-8") as fh:
         d = json.load(fh)
     if d.get("version") != _VERSION or "salt" not in d or "nonce" not in d or "ct" not in d:
-        raise ValueError("not a Vantage vault file")
+        raise ValueError("not a Mimir vault file")
     return d
 
 
@@ -114,7 +114,7 @@ def _decrypt(envelope, passphrase):
     key = _derive(passphrase, _b64d(envelope["salt"]))
     aes = AESGCM(key)
     pt = aes.decrypt(_b64d(envelope["nonce"]), _b64d(envelope["ct"]),
-                     associated_data=b"vantage.vault.v1")
+                     associated_data=b"mimir.vault.v1")
     return json.loads(pt.decode("utf-8"))
 
 
@@ -124,7 +124,7 @@ def _encrypt(items, passphrase, salt=None):
     key = _derive(passphrase, salt)
     aes = AESGCM(key)
     ct = aes.encrypt(nonce, json.dumps(items).encode("utf-8"),
-                     associated_data=b"vantage.vault.v1")
+                     associated_data=b"mimir.vault.v1")
     return {"version": _VERSION, "kdf": {"name": "PBKDF2-HMAC-SHA256",
                                          "iterations": _KDF_ITER},
             "salt": _b64e(salt), "nonce": _b64e(nonce), "ct": _b64e(ct),
@@ -247,7 +247,7 @@ def _prompt(prompt="Passphrase: "):
 
 def main(argv=None):
     import argparse
-    ap = argparse.ArgumentParser(prog="vantage-vault",
+    ap = argparse.ArgumentParser(prog="mimir-vault",
                                  description="AES-256-GCM encrypted engagement credential vault")
     ap.add_argument("--path", help="override vault file location")
     sub = ap.add_subparsers(dest="cmd", required=True)

@@ -1,13 +1,13 @@
-# Contributing to Vantage
+# Contributing to Mimir
 
-Thanks for considering a contribution. Vantage is a knowledge-driven pentest
+Thanks for considering a contribution. Mimir is a knowledge-driven pentest
 orchestration engine for authorized use only; please read
 [`docs/instructions.md`](docs/instructions.md) (the constitution) first — the
 rules there decide what's accepted and what's rejected.
 
 ## Hard rules (non-negotiable)
 
-- **No exploit payloads, exploit runners, C2, or auto-exploitation.** Vantage
+- **No exploit payloads, exploit runners, C2, or auto-exploitation.** Mimir
   stages methodology; the human operator executes. PRs that add any of these
   are closed, not merged.
 - **ATT&CK is the shared vocabulary.** Every check or path step carries a
@@ -16,7 +16,7 @@ rules there decide what's accepted and what's rejected.
 - **Prefer a doc edit over a code change.** Methodology lives in `docs/*.md`
   as fenced YAML; the Python is a generic loader.
 - **Measured, not asserted.** New capability lands with a scenario that will
-  fail if the capability regresses (`vantage-bench`).
+  fail if the capability regresses (`mimir-bench`).
 
 ## Before you open a PR
 
@@ -50,7 +50,7 @@ If you're adding a new assessment module:
 
 ## Reporting a bug
 
-Use GitHub issues. Include: Vantage version (`vantage --version`), platform,
+Use GitHub issues. Include: Mimir version (`mimir --version`), platform,
 Python version, the command you ran, the output, and (if relevant) the
 `nmap` XML / evidence fixture that reproduces it — scrubbed of real client
 data.

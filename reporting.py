@@ -150,10 +150,31 @@ def build_html(report, modules, paths, scan=None):
     def sev_badge(s):
         return f"<span class=sev style='background:{_SEVHEX.get(s, '#888')}'>{s.upper()}</span>"
 
+    def _exploit_cell(f):
+        refs = f.get("exploit_refs") or []
+        if not refs:
+            return ""
+        bits = []
+        for r in refs[:3]:
+            src = _h(r.get("source", ""))
+            name = _h(r.get("name", "")[:40])
+            url = _h(r.get("url", ""))
+            bits.append(f'<a href="{url}" title="{name}" '
+                        f'style="font-size:10px;padding:1px 5px;border-radius:3px;'
+                        f'background:#eac23a22;color:#eac23a;text-decoration:none;'
+                        f'margin-right:4px">{src}</a>')
+        return "".join(bits)
+
     rows = "".join(
         f"<tr><td>{_h(f['host'])}{(':' + str(f['port'])) if f['port'] else ''}</td>"
-        f"<td>{sev_badge(f['severity'])}</td><td>{_h(f['category'])}</td>"
-        f"<td>{_h(f['title'])}</td><td>{' '.join(_h(c) for c in f['cve'][:6])}</td></tr>"
+        f"<td>{sev_badge(f['severity'])}"
+        + (f"<br><code style='font-size:10px;color:#8b95a5'>{_h(f.get('cvss4', ''))}</code>"
+           if f.get('cvss4') else "")
+        + f"</td><td>{_h(f['category'])}</td>"
+        f"<td>{_h(f['title'])}"
+        + (f"<div style='margin-top:2px'>{_exploit_cell(f)}</div>"
+           if f.get("exploit_refs") else "")
+        + f"</td><td>{' '.join(_h(c) for c in f['cve'][:6])}</td></tr>"
         for f in report["findings"])
     hosts = "".join(
         f"<tr><td>{_h(h['host'])}</td><td>{_h(h['ip'])}</td><td>{_h(h['os'])}</td>"
@@ -182,20 +203,55 @@ def build_html(report, modules, paths, scan=None):
         paths_html.append("</ol>")
     src = ("evidence folder" if scan and scan.get("from_dir") else
            "offline XML" if scan and scan.get("from_xml") else "live scan") if scan else "scan"
-    return f"""<!doctype html><html><head><meta charset=utf-8><title>Engagement Report</title>
+    # Optional engagement timeline — embedded as an inline SVG stripe if a
+    # ledger DB is passed via scan['ledger'] (or scan['ledger_db']).
+    timeline_html = ""
+    ledger_db = (scan or {}).get("ledger") or (scan or {}).get("ledger_db")
+    if ledger_db:
+        try:
+            from timeline import load as _tl_load, to_svg as _tl_svg
+            tl = _tl_load(ledger_db)
+            if tl.get("runs") or tl.get("findings"):
+                timeline_html = ("<h2>Engagement timeline</h2>"
+                                 "<div style='overflow-x:auto'>"
+                                 + _tl_svg(tl, width=1000, height=96)
+                                 + "</div>")
+        except Exception:
+            pass
+
+    return f"""<!doctype html><html><head><meta charset=utf-8><title>Mimir — Engagement Report</title>
 <style>{_CSS}</style></head><body>
-<h1>Pentest Engine — Engagement Report</h1>
+<h1>Mimir — Engagement Report</h1>
 <p class=banner>{_h(report.get('generated', ''))} · source: {_h(src)} · mode: {_h(scan.get('mode', '-') if scan else '-')}
 &middot; Analysis &amp; staging only — no exploits were launched.</p>
 <h2>Summary</h2>
 <p>Hosts <b>{t['hosts']}</b> · Open ports <b>{t['open_ports']}</b> · Findings <b>{t['findings']}</b>
 · CVEs <b>{len(report['unique_cves'])}</b> · {' '.join(f"{s}={sc.get(s, 0)}" for s in SEV_ORDER)}</p>
+{timeline_html}
 <h2>Hosts</h2><table><tr><th>Host</th><th>IP</th><th>OS</th><th>Grade</th><th>Ports</th><th>Findings</th></tr>{hosts}</table>
 <h2>Findings ({len(report['findings'])})</h2>
-<table><tr><th>Target</th><th>Sev</th><th>Category</th><th>Issue</th><th>CVEs</th></tr>{rows}</table>
+<table><tr><th>Target</th><th>Sev · CVSS 4.0</th><th>Category</th><th>Issue · exploit refs</th><th>CVEs</th></tr>{rows}</table>
 <h2>Per-service methodology</h2>{''.join(mods)}
 <h2>Staged attack paths</h2>{''.join(paths_html) or '<p>No attack paths derived.</p>'}
 </body></html>"""
+
+
+# --------------------------------------------------------------------------- #
+def write_pdf(report, modules, paths, path, scan=None):
+    """PDF export via WeasyPrint when available; falls back to the HTML on disk
+    with a clear note. The report content is unchanged — PDF is a view."""
+    try:
+        from weasyprint import HTML
+    except Exception as exc:
+        html_path = path.rsplit(".pdf", 1)[0] + ".html"
+        with open(html_path, "w", encoding="utf-8") as fh:
+            fh.write(build_html(report, modules, paths, scan))
+        return {"ok": False, "format": "html",
+                "path": html_path,
+                "reason": f"WeasyPrint not available ({exc}); wrote HTML instead"}
+    body = build_html(report, modules, paths, scan)
+    HTML(string=body).write_pdf(path)
+    return {"ok": True, "format": "pdf", "path": path, "reason": ""}
 
 
 # --------------------------------------------------------------------------- #

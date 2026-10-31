@@ -8,7 +8,7 @@ try:
     from config import SECLISTS
 except Exception:                                                    # pragma: no cover
     import os
-    SECLISTS = os.path.join(os.path.expanduser("~"), ".vantage", "seclists")
+    SECLISTS = os.path.join(os.path.expanduser("~"), ".mimir", "seclists")
 
 
 class WebModule(Module):

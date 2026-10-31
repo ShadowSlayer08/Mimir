@@ -16,7 +16,7 @@ review box, pointed at an exported engagement file.
 
     python assess.py --from-xml scan.xml --yes --emit-json eng.json
     python webapi.py eng.json                 # -> http://127.0.0.1:8787
-    (installed:  vantage-web eng.json)
+    (installed:  mimir-web eng.json)
 """
 from __future__ import annotations
 
@@ -32,8 +32,8 @@ _SLICES = ("meta", "hosts", "findings", "attack_paths", "killchain")
 def load_engagement(path):
     with open(path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
-    if not isinstance(data, dict) or data.get("schema") != "vantage.engagement":
-        raise ValueError("not a vantage engagement JSON (run: assess --emit-json)")
+    if not isinstance(data, dict) or data.get("schema") != "mimir.engagement":
+        raise ValueError("not a mimir engagement JSON (run: assess --emit-json)")
     return data
 
 
@@ -62,7 +62,7 @@ def _j(obj):
 
 def make_handler(payload):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "vantage-web/1.0"
+        server_version = "mimir-web/1.0"
 
         def _send(self, status, ctype, body):
             self.send_response(status)
@@ -96,7 +96,7 @@ def serve(path, host="127.0.0.1", port=8787):
     payload = load_engagement(path)
     httpd = ThreadingHTTPServer((host, port), make_handler(payload))
     t = payload.get("meta", {}).get("totals", {})
-    print(f"[+] vantage web — read-only. Serving {os.path.basename(path)} "
+    print(f"[+] mimir web — read-only. Serving {os.path.basename(path)} "
           f"({t.get('hosts', 0)} hosts, {t.get('findings', 0)} findings) at "
           f"http://{host}:{port}  (Ctrl-C to stop)")
     try:
@@ -109,7 +109,7 @@ def serve(path, host="127.0.0.1", port=8787):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="vantage-web",
+    ap = argparse.ArgumentParser(prog="mimir-web",
                                  description="read-only REST API + web GUI over an "
                                              "engagement JSON (assess --emit-json)")
     ap.add_argument("engagement", help="path to an engagement JSON file")
@@ -128,7 +128,7 @@ def main(argv=None):
 
 INDEX_HTML = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>vantage — engagement</title>
+<title>mimir — engagement</title>
 <style>
 :root{color-scheme:light dark;--bg:#0e1116;--card:#161b22;--line:#21262d;--txt:#c9d1d9;--dim:#8b95a5;--accent:#4c8dff}
 *{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--txt)}
@@ -151,7 +151,7 @@ button.copy{background:transparent;border:1px solid var(--line);color:var(--txt)
 .gnode.start{background:rgba(76,141,255,.18);color:#4c8dff}.gnode.hi{background:rgba(229,72,77,.18);color:#e5484d}
 .arrow{display:inline-flex;flex-direction:column;align-items:center;color:var(--dim);line-height:1.1}.elabel{font-size:9px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style></head><body>
-<header><h1>vantage</h1><span id="meta" class="dim"></span></header>
+<header><h1>mimir</h1><span id="meta" class="dim"></span></header>
 <div class="banner">Read-only viewer — displays a staged engagement and copies commands. It executes nothing.</div>
 <main>
   <div class="cards" id="cards"></div>
@@ -176,7 +176,7 @@ function render(){const v=document.getElementById('view');
   else if(tab==='reco')v.innerHTML=recoView();
   else if(tab==='find')v.innerHTML=findTable();
   else if(tab==='paths')v.innerHTML=pathsView();
-  else v.innerHTML=chainView();
+  else {v.innerHTML=chainView();setTimeout(_renderGraph,30);}
   v.querySelectorAll('button.copy').forEach(b=>b.onclick=()=>{navigator.clipboard.writeText(b.dataset.cmd);b.textContent='copied';setTimeout(()=>b.textContent='Copy command',1200)});}
 function hostsTable(){const h=E.hosts||[];if(!h.length)return '<p class=dim>No hosts.</p>';
   return '<div class=card><table><tr><th>Grade</th><th>Host</th><th>IP</th><th>Device class</th><th>OS</th><th>Ports</th><th>Findings</th></tr>'
@@ -200,12 +200,132 @@ function recoView(){const r=E.recommendations||[];if(!r.length)return '<p class=
     <div class=dim style="margin-top:4px">${esc(a.why)}</div>
     ${a.command?`<div style="display:flex;gap:8px;margin-top:8px;align-items:center"><div class=mono style=flex:1>${esc(a.command)}</div><button class=copy data-cmd="${esc(a.command)}">Copy command</button></div>`:''}</div>`).join('');}
 function chainView(){const p=E.attack_paths||[];if(!p.length)return '<p class=dim>No attack paths.</p>';
-  return p.map(a=>{const st=a.steps||[];
+  // Two renders: a force-directed graph on top, linear chains below.
+  return `<div class=card><div style="display:flex;gap:12px;align-items:baseline;margin-bottom:8px">
+    <b>Attack graph</b> <span class=dim>· force-directed; drag nodes · double-click to pin</span></div>
+    <div id="agraph" style="height:420px;position:relative;background:#0f1319;border-radius:6px"></div></div>`
+   +p.map(a=>{const st=a.steps||[];
     const start=(a.hosts&&a.hosts[0])||(st[0]&&(st[0].src||st[0].host))||'start';
     let h=`<div class=card><div style="margin-bottom:8px"><span class=pill style="background:#8b95a522">${esc(a.id)}</span> <b class="sev-${a.severity}">${esc(a.name)}</b> <span class=dim>· ${esc(a.kind)}</span></div><div class=chain><span class="gnode start">${esc(start)}</span>`;
     st.forEach((s,i)=>{const lbl=s.edge||s.technique_id||'';const hi=(i===st.length-1)&&(a.kind==='domain'||a.severity==='critical');
       h+=`<span class=arrow><span class=elabel>${esc(lbl)}</span>&#9654;</span><span class="gnode ${hi?'hi':'mid'}">${esc(s.dst||s.host||'?')}</span>`;});
     return h+'</div></div>';}).join('');}
+
+// ---- Force-directed graph ----------------------------------------------
+function _buildGraph(){
+  const nodes=new Map(), edges=[];
+  (E.attack_paths||[]).forEach(p=>{
+    const hs=(p.hosts||[]).filter(Boolean);
+    hs.forEach(h=>{if(!nodes.has(h))nodes.set(h,{id:h,crit:false,endpoint:false});});
+    (p.steps||[]).forEach((s,i)=>{
+      const src=s.src||(i===0?hs[0]:((p.steps[i-1]||{}).dst||(p.steps[i-1]||{}).host))||'start';
+      const dst=s.dst||s.host||'?';
+      [src,dst].forEach(n=>{if(n&&!nodes.has(n))nodes.set(n,{id:n,crit:false,endpoint:false});});
+      if(src&&dst&&src!==dst)
+        edges.push({a:src,b:dst,label:s.edge||s.technique_id||'',sev:p.severity||'',crit:p.kind==='domain'||p.severity==='critical'});
+    });
+    // mark the final host of a domain / critical path as "crit"
+    if(p.kind==='domain'||p.severity==='critical'){
+      const last=hs[hs.length-1]||((p.steps||[]).slice(-1)[0]||{}).host;
+      if(last&&nodes.has(last))nodes.get(last).crit=true;
+    }
+    // the first host of each path is the "entry"
+    if(hs[0]&&nodes.has(hs[0]))nodes.get(hs[0]).endpoint=true;
+  });
+  return {nodes:Array.from(nodes.values()),edges};
+}
+
+function _renderGraph(){
+  const host=document.getElementById('agraph');if(!host)return;
+  const {nodes,edges}=_buildGraph();
+  if(!nodes.length){host.innerHTML='<p class=dim style="padding:12px">No graph data.</p>';return;}
+  const W=host.clientWidth||800,H=host.clientHeight||420;
+  // seed positions on a circle
+  nodes.forEach((n,i)=>{const a=i/nodes.length*Math.PI*2;n.x=W/2+Math.cos(a)*140;n.y=H/2+Math.sin(a)*140;n.vx=0;n.vy=0;n.fx=null;n.fy=null;});
+  const byId=Object.fromEntries(nodes.map(n=>[n.id,n]));
+  const links=edges.map(e=>({s:byId[e.a],t:byId[e.b],label:e.label,crit:e.crit})).filter(l=>l.s&&l.t);
+  const svgNS='http://www.w3.org/2000/svg';
+  host.innerHTML='';
+  const svg=document.createElementNS(svgNS,'svg');
+  svg.setAttribute('width',W);svg.setAttribute('height',H);
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.style.display='block';
+  // defs: arrowhead marker
+  const defs=document.createElementNS(svgNS,'defs');
+  defs.innerHTML='<marker id=ah viewBox="0 0 10 10" refX="18" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7b8aa2"/></marker>';
+  svg.appendChild(defs);
+  const gE=document.createElementNS(svgNS,'g');svg.appendChild(gE);
+  const gL=document.createElementNS(svgNS,'g');svg.appendChild(gL);
+  const gN=document.createElementNS(svgNS,'g');svg.appendChild(gN);
+  // edges
+  const edgeEls=links.map(l=>{
+    const line=document.createElementNS(svgNS,'line');
+    line.setAttribute('stroke',l.crit?'#e5484d':'#52607a');
+    line.setAttribute('stroke-width',l.crit?2:1.3);
+    line.setAttribute('marker-end','url(#ah)');
+    line.setAttribute('opacity',0.9);
+    gE.appendChild(line);
+    let txt=null;
+    if(l.label){
+      txt=document.createElementNS(svgNS,'text');
+      txt.setAttribute('font-size','9');txt.setAttribute('fill','#8b95a5');
+      txt.setAttribute('text-anchor','middle');txt.textContent=l.label;
+      gL.appendChild(txt);
+    }
+    return {l,line,txt};
+  });
+  // nodes
+  const nodeEls=nodes.map(n=>{
+    const g=document.createElementNS(svgNS,'g');g.style.cursor='grab';
+    const col=n.crit?'#e5484d':(n.endpoint?'#4c8dff':'#7bd88f');
+    const bg=n.crit?'rgba(229,72,77,.18)':(n.endpoint?'rgba(76,141,255,.18)':'rgba(123,216,143,.14)');
+    const w=Math.max(80,Math.min(170,n.id.length*7+14));
+    const rect=document.createElementNS(svgNS,'rect');
+    rect.setAttribute('x',-w/2);rect.setAttribute('y',-12);rect.setAttribute('width',w);rect.setAttribute('height',24);
+    rect.setAttribute('rx',6);rect.setAttribute('fill',bg);rect.setAttribute('stroke',col);rect.setAttribute('stroke-width',1.2);
+    g.appendChild(rect);
+    const t=document.createElementNS(svgNS,'text');
+    t.setAttribute('font-size','11');t.setAttribute('font-weight','600');t.setAttribute('fill',col);
+    t.setAttribute('text-anchor','middle');t.setAttribute('y','4');t.textContent=n.id;
+    g.appendChild(t);
+    gN.appendChild(g);
+    // drag + dbl-click to pin
+    let dragging=false;
+    g.addEventListener('mousedown',e=>{dragging=true;g.style.cursor='grabbing';e.preventDefault();});
+    g.addEventListener('dblclick',()=>{if(n.fx===null){n.fx=n.x;n.fy=n.y;rect.setAttribute('stroke-dasharray','3,2');}else{n.fx=null;n.fy=null;rect.removeAttribute('stroke-dasharray');}});
+    window.addEventListener('mouseup',()=>{dragging=false;g.style.cursor='grab';});
+    window.addEventListener('mousemove',e=>{if(!dragging)return;const pt=svg.getBoundingClientRect();n.x=e.clientX-pt.left;n.y=e.clientY-pt.top;n.vx=0;n.vy=0;});
+    return {n,g,rect};
+  });
+  // simple spring/charge simulation
+  const CHARGE=-800,SPRING_K=0.02,SPRING_LEN=130,DAMP=0.82,CENTER=0.012;
+  let frame=0;
+  function tick(){
+    frame++;
+    for(const a of nodes){a.vx*=DAMP;a.vy*=DAMP;}
+    // charge
+    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+      const a=nodes[i],b=nodes[j];let dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy+0.01,d=Math.sqrt(d2);
+      const f=CHARGE/d2;a.vx+=f*dx/d;a.vy+=f*dy/d;b.vx-=f*dx/d;b.vy-=f*dy/d;
+    }
+    // springs
+    for(const l of links){const dx=l.t.x-l.s.x,dy=l.t.y-l.s.y,d=Math.sqrt(dx*dx+dy*dy)+0.01;
+      const f=SPRING_K*(d-SPRING_LEN);const ux=dx/d,uy=dy/d;
+      l.s.vx+=f*ux;l.s.vy+=f*uy;l.t.vx-=f*ux;l.t.vy-=f*uy;}
+    // center + apply
+    for(const n of nodes){n.vx+=(W/2-n.x)*CENTER;n.vy+=(H/2-n.y)*CENTER;
+      if(n.fx!==null){n.x=n.fx;n.y=n.fy;n.vx=0;n.vy=0;}
+      else{n.x+=n.vx;n.y+=n.vy;n.x=Math.max(50,Math.min(W-50,n.x));n.y=Math.max(20,Math.min(H-20,n.y));}}
+    // draw
+    for(const {l,line,txt} of edgeEls){
+      line.setAttribute('x1',l.s.x);line.setAttribute('y1',l.s.y);
+      line.setAttribute('x2',l.t.x);line.setAttribute('y2',l.t.y);
+      if(txt){txt.setAttribute('x',(l.s.x+l.t.x)/2);txt.setAttribute('y',(l.s.y+l.t.y)/2 - 2);}
+    }
+    for(const {n,g} of nodeEls)g.setAttribute('transform',`translate(${n.x},${n.y})`);
+    if(frame<600)requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));render()});
 load().catch(e=>document.getElementById('view').innerHTML='<p class=sev-critical>Failed to load: '+esc(e)+'</p>');

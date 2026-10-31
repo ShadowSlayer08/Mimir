@@ -36,7 +36,7 @@ try:
     from enrich import _cache_file, _fresh
 except Exception:                                              # pragma: no cover
     def _cache_file(name):
-        base = os.path.join(os.path.expanduser("~"), ".cache", "vantage")
+        base = os.path.join(os.path.expanduser("~"), ".cache", "mimir")
         os.makedirs(base, exist_ok=True)
         return os.path.join(base, name)
 
@@ -55,7 +55,7 @@ def _force_utf8_stdio():
 _force_utf8_stdio()
 
 _TTL = 24 * 3600
-_UA = ("vantage-ct-monitor/1.0 (+authorized pentest tooling; "
+_UA = ("mimir-ct-monitor/1.0 (+authorized pentest tooling; "
        "public CT logs only; no target traffic)")
 _CRTSH = "https://crt.sh/?q=%25.{domain}&output=json"
 
@@ -167,7 +167,7 @@ def refresh(domain):
 
 def main(argv=None):
     import argparse
-    ap = argparse.ArgumentParser(prog="vantage-ct",
+    ap = argparse.ArgumentParser(prog="mimir-ct",
                                  description="Certificate Transparency lookup (crt.sh; cached)")
     ap.add_argument("domain", help="apex domain to query (e.g. acme.example)")
     ap.add_argument("--offline", action="store_true", help="use cache only; never fetch")

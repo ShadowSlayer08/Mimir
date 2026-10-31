@@ -1,4 +1,4 @@
-# Vantage
+# Mimir
 
 > **The elevated viewpoint that reveals the whole surface.**
 > A knowledge-driven pentest / red-team **orchestration** engine — it plans and
@@ -9,14 +9,14 @@
 
 ---
 
-## Why Vantage
+## Why Mimir
 
 A modern engagement produces more findings than any operator can triage, more
 attack paths than any team can run, and more deliverables than any report can
-hold. Vantage sits above the tools and the ledger and gives the operator a
+hold. Mimir sits above the tools and the ledger and gives the operator a
 single, measurable, auditable workflow:
 
-- **Methodology, not weaponization.** Vantage does **not** run exploits, build
+- **Methodology, not weaponization.** Mimir does **not** run exploits, build
   payloads, or operate C2. Every attack step is staged with its MITRE ATT&CK
   technique + abuse insight + reference commands for a human to execute
   manually, in authorized scope, with their own tooling.
@@ -26,7 +26,7 @@ single, measurable, auditable workflow:
   (ranking, re-ordering attack paths, narrating a stage, writing an exec
   summary) routes through `qualia.decide` — a local Ollama model if present,
   the deterministic weighted ranker otherwise. The engine works airgapped.
-- **Measured, not asserted.** The eval harness (`vantage-bench`) scores the
+- **Measured, not asserted.** The eval harness (`mimir-bench`) scores the
   engine against a scenario corpus — regressions are a red CI, not an
   argument.
 
@@ -71,7 +71,7 @@ pip install .               # headless CLI engine only
 
 ```bash
 # Native binary (no Python required on the target machine)
-python build_app.py         # dist/Vantage.exe | dist/Vantage | dist/Vantage.app
+python build_app.py         # dist/Mimir.exe | dist/Mimir | dist/Mimir.app
 ```
 
 Live scanning needs **nmap** on `PATH` (Windows: Npcap too). Offline ingest
@@ -81,24 +81,24 @@ works without it.
 
 ```bash
 # Ingest an existing nmap XML, derive attack paths, emit a signed engagement JSON
-vantage-cli --from-xml tests/fixtures/full_scan.xml --yes --emit-json eng.json
+mimir-cli --from-xml tests/fixtures/full_scan.xml --yes --emit-json eng.json
 
 # Browse the engagement in the local read-only web GUI
-vantage-web eng.json                              # http://localhost:8787
+mimir-web eng.json                              # http://localhost:8787
 
 # Ranked next-best actions (deterministic ranker + score trace)
-vantage-copilot eng.json --why
+mimir-copilot eng.json --why
 
 # Operator runbook + LLM-expanded playbook (needs Ollama; offline-safe otherwise)
-vantage-advisor eng.json --runbook rb.md
+mimir-advisor eng.json --runbook rb.md
 
 # Measured regression check
-vantage-bench                                     # all scenarios, non-zero exit on any miss
+mimir-bench                                     # all scenarios, non-zero exit on any miss
 ```
 
-Full command list: `vantage-cli --help`, plus specialist entry points —
-`vantage-mcp`, `vantage-roe`, `vantage-timeline`, `vantage-vault`,
-`vantage-exploits`, `vantage-adgraph`, `vantage-lessons`, `vantage-bench`.
+Full command list: `mimir-cli --help`, plus specialist entry points —
+`mimir-mcp`, `mimir-roe`, `mimir-timeline`, `mimir-vault`,
+`mimir-exploits`, `mimir-adgraph`, `mimir-lessons`, `mimir-bench`.
 
 ## Rules of Engagement (hard gates)
 
@@ -107,7 +107,7 @@ Every target host crosses two filters before the operator sees it staged:
 1. **Hard institutional guardrail** — refuses `.gov` / `.mil` / `.edu` / `.int`
    (plus country variants `.gov.uk`, `.gob.es`, `.gouv.fr`, `.ac.uk`, …) by
    default. Override only with explicit operator consent via
-   `VANTAGE_ALLOW_INSTITUTIONAL=1`.
+   `MIMIR_ALLOW_INSTITUTIONAL=1`.
 2. **ROE YAML** — scope (`in_scope` CIDR / hostname suffix / exact), time
    windows, forbidden techniques (`T####`), forbidden attack-path kinds, and
    forbidden risk tags (`intrusive`). Every rejection carries a reason + the
@@ -125,14 +125,14 @@ forbidden_risk: [intrusive]                          # VAPT mode
 ```
 
 ```bash
-vantage-roe eng.json engagement.roe.yml --json eng.filtered.json
+mimir-roe eng.json engagement.roe.yml --json eng.filtered.json
 ```
 
 ## Repository health
 
 - **193/193 tests pass.** `python run_tests.py`
 - **Knowledge base validates cleanly.** `python validate_kb.py`
-- **7 eval scenarios / 102 assertions / 100 % recall.** `vantage-bench`
+- **7 eval scenarios / 102 assertions / 100 % recall.** `mimir-bench`
 - CI (GitHub Actions) runs tests + KB check + evals on every PR, matrix
   across Python 3.11 / 3.12 on Ubuntu / Windows / macOS.
 
@@ -147,14 +147,14 @@ vantage-roe eng.json engagement.roe.yml --json eng.filtered.json
 
 ## License
 
-AGPL-3.0-or-later. See [`LICENSE`](LICENSE). Vantage is open — the AGPL
+AGPL-3.0-or-later. See [`LICENSE`](LICENSE). Mimir is open — the AGPL
 protects against commercial repackaging that doesn't contribute back.
 
 ## Legal and ethical reminder
 
 Running network scans or application assessments against systems **without
-written authorization** is illegal in most jurisdictions. Vantage will refuse
+written authorization** is illegal in most jurisdictions. Mimir will refuse
 to help you do so — the hard guardrail is on by default, and the ROE scope gate
 and `--yes` authorization confirmation are not decorative. If you need to
-assess your own systems, your written engagement scope is the artifact Vantage
+assess your own systems, your written engagement scope is the artifact Mimir
 expects. Everything else is out of bounds and will not be supported.

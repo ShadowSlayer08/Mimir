@@ -40,7 +40,7 @@ def _fresh(path, ttl):
         return False
 
 
-_UA = "vantage-enrich/1.0 (+authorized pentest tooling; public vuln feeds only)"
+_UA = "mimir-enrich/1.0 (+authorized pentest tooling; public vuln feeds only)"
 
 
 def _stale(dest):

@@ -4,7 +4,7 @@ opsec.py — operator noise profile + staged-step annotation (ARES-inspired).
 
 Authorized / lab / CTF / VAPT / red-team use only.
 
-Vantage stages; it never executes. So an "OPSEC Governor" in the ARES sense
+Mimir stages; it never executes. So an "OPSEC Governor" in the ARES sense
 (throttling + abort-on-detection-risk at the exec layer) doesn't apply directly.
 What DOES apply: tagging every staged step with a NOISE SCORE + a RECOMMENDED
 pacing hint so the operator (and the co-pilot) can order steps by noise budget,
@@ -154,7 +154,7 @@ def main(argv=None):
     import argparse
     import json
     import sys
-    ap = argparse.ArgumentParser(prog="vantage-opsec",
+    ap = argparse.ArgumentParser(prog="mimir-opsec",
                                  description="annotate an engagement JSON with noise scores")
     ap.add_argument("engagement", help="engagement JSON (assess --emit-json)")
     ap.add_argument("--profile", default="normal",

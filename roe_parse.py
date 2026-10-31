@@ -268,7 +268,7 @@ def to_yaml(rules):
 
 def main(argv=None):
     import argparse
-    ap = argparse.ArgumentParser(prog="vantage-roe-parse",
+    ap = argparse.ArgumentParser(prog="mimir-roe-parse",
                                  description="parse a human ROE (md/txt/pdf) into "
                                              "the structured YAML roe.py consumes")
     ap.add_argument("source", help="path to the ROE document (.md / .txt / .pdf)")

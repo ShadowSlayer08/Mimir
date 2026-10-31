@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""vantage.sdk.testharness — isolated test environment for a plugin module.
+"""mimir.sdk.testharness — isolated test environment for a plugin module.
 
 ARES-inspired `ModuleTestHarness`: lets a plugin author unit-test a module in
 full isolation — mock ROE scope + synthetic vault + capture of stage events —
-without needing the whole vantage engine running.
+without needing the whole mimir engine running.
 
 Typical use:
 
-    from vantage.sdk import TestHarness
+    from mimir.sdk import TestHarness
     from mypkg.hello import HelloModule
 
     def test_hello_runs_in_scope():

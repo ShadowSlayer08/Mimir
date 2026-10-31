@@ -562,6 +562,9 @@ def build_parser():
                     help="extra context k=v filled as <k> in commands, e.g. --ctx listener=10.0.0.5 (repeatable)")
     ap.add_argument("--report", dest="report_out",
                     help="write an engagement report (.md or .html by extension)")
+    ap.add_argument("--pdf", dest="pdf_out",
+                    help="write an engagement report PDF (WeasyPrint required; "
+                         "falls back to HTML with a notice if unavailable)")
     ap.add_argument("--navigator", dest="navigator_out",
                     help="write a MITRE ATT&CK Navigator layer (.json)")
     ap.add_argument("--runbook", dest="runbook_out",
@@ -750,10 +753,10 @@ def build_engagement_json(report, mods, paths, scan_meta):
         stages = []
 
     return {
-        "schema": "vantage.engagement", "schema_version": 1,
+        "schema": "mimir.engagement", "schema_version": 1,
         "meta": {
             "generated": datetime.now(timezone.utc).isoformat(),
-            "tool": "vantage-cli", "engine_version": report.get("version", ""),
+            "tool": "mimir-cli", "engine_version": report.get("version", ""),
             "mode": scan_meta.get("mode", ""), "target": scan_meta.get("target", ""),
             "offline": offline, "source": source,
             "totals": report.get("totals", {}),
@@ -883,7 +886,7 @@ def main(argv=None):
     if _missing:
         print(C.ylw(f"  [tools] not on PATH ({len(_missing)}): " + ", ".join(_missing[:14])
                     + (" …" if len(_missing) > 14 else "")))
-        print(C.dim("  (install these, or set VANTAGE_* paths; methodology is still shown as reference)"))
+        print(C.dim("  (install these, or set MIMIR_* paths; methodology is still shown as reference)"))
 
     # Opt-in: run the non-intrusive ENUMERATION checks in containers (not exploits).
     if args.run_containers:
@@ -1020,10 +1023,21 @@ def main(argv=None):
         with open(args.emit_json, "w", encoding="utf-8") as fh:
             json.dump(eng_payload, fh, indent=2)
         print(C.grn(f"[+] Engagement JSON (frontend contract) written: {args.emit_json}"))
+    # Pass the ledger DB path to scan_meta so the HTML report can embed the timeline SVG.
+    if getattr(args, "ledger_db", None):
+        scan_meta["ledger"] = args.ledger_db
     if args.report_out:
         from reporting import write_report
         write_report(report, mods, paths, args.report_out, scan=scan_meta)
         print(C.grn(f"[+] Report written: {args.report_out}"))
+    if getattr(args, "pdf_out", None):
+        from reporting import write_pdf
+        r = write_pdf(report, mods, paths, args.pdf_out, scan=scan_meta)
+        if r["ok"]:
+            print(C.grn(f"[+] PDF report written: {r['path']}"))
+        else:
+            print(C.ylw(f"  PDF unavailable: {r['reason']}"))
+            print(C.grn(f"[+] HTML fallback: {r['path']}"))
     if args.navigator_out:
         from reporting import write_navigator
         write_navigator(mods, paths, args.navigator_out)

@@ -9,14 +9,14 @@ per-module methodology live in the Markdown docs as fenced yaml blocks. This
 loader extracts and merges them. Edit a doc, change the engine - no code change.
 
 Docs resolution (first existing wins):
-  1. VANTAGE_DOCS         - explicit operator override (absolute path).
+  1. MIMIR_DOCS         - explicit operator override (absolute path).
   2. dev / source checkout  - docs/ sitting next to this file.
   3. frozen (PyInstaller)   - sys._MEIPASS/docs inside the onefile bundle.
   4. pip / pipx install     - importlib.resources.files('docs') (docs is a
                               shipped data package; see pyproject.toml).
-  5. per-OS user config dir - APPDATA/vantage/docs, ~/Library/Application
-                              Support/vantage/docs, or XDG_CONFIG_HOME (or
-                              ~/.config)/vantage/docs - out-of-tree drop-in.
+  5. per-OS user config dir - APPDATA/mimir/docs, ~/Library/Application
+                              Support/mimir/docs, or XDG_CONFIG_HOME (or
+                              ~/.config)/mimir/docs - out-of-tree drop-in.
 If none resolve, DEFAULT_DOCS is None and the dispatcher falls back to its
 built-in module methodology (the engine still runs without docs/).
 """
@@ -43,14 +43,14 @@ def _is_docs_dir(path):
 
 
 def _user_config_docs():
-    """Per-OS user config location for an out-of-tree KB: <config>/vantage/docs."""
+    """Per-OS user config location for an out-of-tree KB: <config>/mimir/docs."""
     if sys.platform.startswith("win"):
         base = os.environ.get("APPDATA") or os.path.expanduser("~\\AppData\\Roaming")
     elif sys.platform == "darwin":
         base = os.path.expanduser("~/Library/Application Support")
     else:
         base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
-    return os.path.join(base, "vantage", "docs")
+    return os.path.join(base, "mimir", "docs")
 
 
 def _safe_exit(cm):
@@ -92,7 +92,7 @@ def _resource_docs():
 
 
 def _resolve_docs():
-    env = os.environ.get("VANTAGE_DOCS", os.environ.get("VANTAGE_DOCS"))
+    env = os.environ.get("MIMIR_DOCS", os.environ.get("VANTAGE_DOCS", os.environ.get("MIMIR_DOCS", os.environ.get("VANTAGE_DOCS"))))
     if env and _is_docs_dir(env):
         return env
     here = os.path.dirname(os.path.abspath(__file__))

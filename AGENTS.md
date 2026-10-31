@@ -39,7 +39,7 @@ reporting.py / ledger.py      engagement report + ATT&CK Navigator layer; SQLite
 apptargets.py + modules/{web_app,api,mobile,thick_client}.py   AppSec pillar: web/API/mobile/
                               thick as target-driven OWASP (WSTG/API-Top-10/MASVS)+CWE objects
 pentest_console.py            PySide6 console: Attack Paths + Modules tabs + staging queue
-attack_dashboard.py / vantage.py   dashboard + single GUI entry (.exe)
+attack_dashboard.py / mimir.py   dashboard + single GUI entry (.exe)
 knowledge_loader.py / validate_kb.py  load + validate the docs/ knowledge base
 modules/                      generic doc-backed dispatcher + per-service fallbacks
 docs/                         the knowledge base (constitution, registry, maps, module methodology)
@@ -55,7 +55,7 @@ python -m modules tests/fixtures/full_scan.xml          # knowledge-driven metho
 python attack_path_engine.py tests/fixtures/full_scan.xml
 python knowledge_loader.py                              # KB summary; run after editing docs/
 # GUIs (need a display; headless: xvfb-run … --selftest)
-python vantage.py tests/fixtures/full_scan.xml
+python mimir.py tests/fixtures/full_scan.xml
 ```
 
 ## Conventions

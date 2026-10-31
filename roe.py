@@ -39,8 +39,8 @@ _ATTACK_RE = re.compile(r"^T\d{4}(\.\d{3})?$")
 # regardless of what the ROE YAML allows. Scanning government / military /
 # educational / international-organisation infrastructure without an engagement
 # that explicitly authorises them is both ethically and legally problematic;
-# Vantage refuses to stage against these TLDs by default. Opt-in override:
-# set VANTAGE_ALLOW_INSTITUTIONAL=1 (operator takes responsibility).
+# Mimir refuses to stage against these TLDs by default. Opt-in override:
+# set MIMIR_ALLOW_INSTITUTIONAL=1 (operator takes responsibility).
 _INSTITUTIONAL_TLD = re.compile(
     r"(^|\.)("
     r"gov|gov\.[a-z]{2,3}|gob\.[a-z]{2,3}|gouv\.[a-z]{2,3}|govt\.[a-z]{2,3}|"
@@ -55,8 +55,8 @@ _INSTITUTIONAL_TLD = re.compile(
 
 def institutional_block_reason(host):
     """Return a specific reason string if `host` matches a protected institutional
-    TLD, else "". Overridable via VANTAGE_ALLOW_INSTITUTIONAL=1."""
-    if os.environ.get("VANTAGE_ALLOW_INSTITUTIONAL", "").strip() in ("1", "true", "yes"):
+    TLD, else "". Overridable via MIMIR_ALLOW_INSTITUTIONAL=1."""
+    if os.environ.get("MIMIR_ALLOW_INSTITUTIONAL", os.environ.get("VANTAGE_ALLOW_INSTITUTIONAL", "")).strip() in ("1", "true", "yes"):
         return ""
     if not host or _is_ip(host):
         return ""

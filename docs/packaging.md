@@ -1,6 +1,6 @@
 # Packaging — cross-platform thick client
 
-`vantage.py` is the single entry point for the GUI thick client (PySide6/Qt6,
+`mimir.py` is the single entry point for the GUI thick client (PySide6/Qt6,
 which runs natively on **Windows, Linux and macOS**). The Attack Dashboard
 (target form + VAPT/Red Team mode) connects to the operations console where
 **every op runs in-process**: acquire/scan, ingest an evidence folder, analyse,
@@ -23,29 +23,29 @@ Installs three console scripts on every OS:
 
 | command          | what it launches                                    |
 |------------------|-----------------------------------------------------|
-| `vantage`      | the PySide6 thick-client GUI (needs the `[gui]` extra) |
-| `vantage-cli`  | the `assess.py` end-to-end CLI pipeline             |
-| `vantage-scan` | the `nmap_analyzer` inventory analyzer             |
+| `mimir`      | the PySide6 thick-client GUI (needs the `[gui]` extra) |
+| `mimir-cli`  | the `assess.py` end-to-end CLI pipeline             |
+| `mimir-scan` | the `nmap_analyzer` inventory analyzer             |
 
 The `docs/` knowledge base ships as a data package and is resolved at runtime by
 `knowledge_loader` (dev tree → frozen bundle → installed package via
-`importlib.resources` → `VANTAGE_DOCS` / per-OS config dir → built-in
+`importlib.resources` → `MIMIR_DOCS` / per-OS config dir → built-in
 fallbacks). `exploits/` and `tests/` are deliberately **not** shipped.
 
 ## 2. Native binary (PyInstaller, no Python needed to run it)
 
 ```
 pip install pyinstaller         # or: pip install .[build]
-python build_app.py             # or:  pyinstaller vantage.spec
+python build_app.py             # or:  pyinstaller mimir.spec
 ```
 
 One spec builds the right artifact for the OS you run it on:
 
 | OS      | output                 |
 |---------|------------------------|
-| Windows | `dist/Vantage.exe`   |
-| Linux   | `dist/Vantage` (ELF) |
-| macOS   | `dist/Vantage.app`   |
+| Windows | `dist/Mimir.exe`   |
+| Linux   | `dist/Mimir` (ELF) |
+| macOS   | `dist/Mimir.app`   |
 
 **PyInstaller cannot cross-compile** — build on each target OS (or wire a CI
 matrix: windows-latest / ubuntu-latest / macos-latest). The `docs/` tree is
@@ -61,7 +61,7 @@ displays the dashboard + attack paths, copying staged commands to the clipboard.
 It **executes nothing**. Produce its input with:
 
 ```
-vantage-cli --from-xml scan.xml --yes --emit-json engagement.json
+mimir-cli --from-xml scan.xml --yes --emit-json engagement.json
 ```
 
 See `flutter/README.md` for SDK setup and per-OS build steps.
@@ -80,14 +80,14 @@ See `flutter/README.md` for SDK setup and per-OS build steps.
 - Containerized enumeration (`--run-containers`) uses `--network=host` on Linux
   and falls back to `bridge` on Windows/macOS (Docker Desktop / Podman machine
   don't support host networking).
-- Wordlist/tool paths default to a Kali layout on Linux and to `~/.vantage/<…>`
-  elsewhere; override with `VANTAGE_SECLISTS` / `VANTAGE_WORDLISTS` or a
-  `vantage.toml` (see `config.py`).
+- Wordlist/tool paths default to a Kali layout on Linux and to `~/.mimir/<…>`
+  elsewhere; override with `MIMIR_SECLISTS` / `MIMIR_WORDLISTS` or a
+  `mimir.toml` (see `config.py`).
 - First launch of a onefile native build self-extracts to a temp dir (slightly
   slow); switch the spec to `--onedir` if you prefer faster startup.
 
 ## What ships in the GUI binary
-`vantage.py` → `attack_dashboard` → `pentest_console.Console`, pulling in
+`mimir.py` → `attack_dashboard` → `pentest_console.Console`, pulling in
 `assess`, `profiles`, `evidence`, `reporting`, `ledger`, `killchain`,
 `device_profile`, `abuse`, `containers`, `modules/*`, `nmap_analyzer`,
 `attack_path_engine`, `knowledge_loader`, `ciphers`, plus the `docs/` data tree.

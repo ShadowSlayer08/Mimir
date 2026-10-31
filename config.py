@@ -6,8 +6,8 @@ application directories, tool checks.
 Authorized / lab / CTF use only.
 
 Module command templates reference {seclists}/{wordlists}/{users}/{passwords}.
-These resolve, in precedence order, from (1) VANTAGE_* env vars, (2) an
-optional vantage.toml / vantage.json config file, (3) OS-aware defaults — so
+These resolve, in precedence order, from (1) MIMIR_* env vars, (2) an
+optional mimir.toml / mimir.json config file, (3) OS-aware defaults — so
 the staged methodology is portable across Windows, Linux and macOS instead of
 assuming a Kali layout. `missing_tools()` flags operator tools not on PATH.
 `platform_dirs()` / `app_path()` give per-OS locations (%APPDATA% / $XDG_* /
@@ -20,7 +20,7 @@ import shutil
 import sys
 from pathlib import Path
 
-APP_NAME = "Vantage"
+APP_NAME = "Mimir"
 
 
 # --------------------------------------------------------------------------- #
@@ -38,7 +38,7 @@ def platform_dirs():
         return sup, sup
     cfg = os.environ.get("XDG_CONFIG_HOME") or str(home / ".config")
     data = os.environ.get("XDG_DATA_HOME") or str(home / ".local" / "share")
-    return os.path.join(cfg, "vantage"), os.path.join(data, "vantage")
+    return os.path.join(cfg, "mimir"), os.path.join(data, "mimir")
 
 
 CONFIG_DIR, DATA_DIR = platform_dirs()
@@ -64,17 +64,17 @@ def app_path(name, create_parent=False):
 
 
 # --------------------------------------------------------------------------- #
-# Optional config file: vantage.toml | vantage.json holding {seclists: ...}
-# or {"paths": {seclists: ...}}. Searched: VANTAGE_CONFIG, CWD, per-OS config.
+# Optional config file: mimir.toml | mimir.json holding {seclists: ...}
+# or {"paths": {seclists: ...}}. Searched: MIMIR_CONFIG, CWD, per-OS config.
 # --------------------------------------------------------------------------- #
 def _load_config_file():
     candidates = []
-    env = os.environ.get("VANTAGE_CONFIG", os.environ.get("VANTAGE_CONFIG"))
+    env = os.environ.get("MIMIR_CONFIG", os.environ.get("VANTAGE_CONFIG", os.environ.get("MIMIR_CONFIG", os.environ.get("VANTAGE_CONFIG"))))
     if env:
         candidates.append(env)
-    candidates += ["vantage.toml", "vantage.json",
-                   os.path.join(CONFIG_DIR, "vantage.toml"),
-                   os.path.join(CONFIG_DIR, "vantage.json")]
+    candidates += ["mimir.toml", "mimir.json",
+                   os.path.join(CONFIG_DIR, "mimir.toml"),
+                   os.path.join(CONFIG_DIR, "mimir.json")]
     for path in candidates:
         try:
             if not path or not os.path.isfile(path):
@@ -107,23 +107,23 @@ def _os_default(subdir, kali_path):
     # home-dir path the operator can populate or override.
     if not sys.platform.startswith("win") and os.path.isdir(kali_path):
         return kali_path
-    return str(Path.home() / ".vantage" / subdir)
+    return str(Path.home() / ".mimir" / subdir)
 
 
 def _resolve(key, env_key, default, legacy_env=None):
-    # precedence: VANTAGE_* env var > legacy REDENGINE_* env var > config file > OS-aware default
+    # precedence: MIMIR_* env var > legacy REDENGINE_* env var > config file > OS-aware default
     return (os.environ.get(env_key)
             or (legacy_env and os.environ.get(legacy_env))
             or _FILE.get(key)
             or default)
 
 
-SECLISTS  = _resolve("seclists",  "VANTAGE_SECLISTS",  _os_default("seclists", "/usr/share/seclists"),
+SECLISTS  = _resolve("seclists",  "MIMIR_SECLISTS",  _os_default("seclists", "/usr/share/seclists"),
                      legacy_env="REDENGINE_SECLISTS")
-WORDLISTS = _resolve("wordlists", "VANTAGE_WORDLISTS", _os_default("wordlists", "/usr/share/wordlists"),
+WORDLISTS = _resolve("wordlists", "MIMIR_WORDLISTS", _os_default("wordlists", "/usr/share/wordlists"),
                      legacy_env="REDENGINE_WORDLISTS")
-USERS     = _resolve("users",     "VANTAGE_USERS",     "users.txt",     legacy_env="REDENGINE_USERS")
-PASSWORDS = _resolve("passwords", "VANTAGE_PASSWORDS", "passwords.txt", legacy_env="REDENGINE_PASSWORDS")
+USERS     = _resolve("users",     "MIMIR_USERS",     "users.txt",     legacy_env="REDENGINE_USERS")
+PASSWORDS = _resolve("passwords", "MIMIR_PASSWORDS", "passwords.txt", legacy_env="REDENGINE_PASSWORDS")
 
 # template vars injected into module command rendering
 PATHS = {"seclists": SECLISTS, "wordlists": WORDLISTS, "users": USERS, "passwords": PASSWORDS}

@@ -12,7 +12,7 @@ the target network: the engagement data stays on the operator's own machine.
 SECURITY / PRIVACY (why local-only is the point):
   * Local only. Cloud-backed Ollama models (name ends ':cloud') are EXCLUDED from
     automatic selection so engagement data never leaves the box. Opt in with
-    VANTAGE_LLM_ALLOW_CLOUD=1 if you really mean to.
+    MIMIR_LLM_ALLOW_CLOUD=1 if you really mean to.
   * Optional. If Ollama is not running, every call degrades gracefully (returns
     None / []), and the engine behaves exactly as it did before.
   * Staging only. This is an authorized red-team tool: the model gives real operator
@@ -23,13 +23,13 @@ importable even in a minimal install.
 
 Config (environment):
   OLLAMA_HOST                base url            (default http://localhost:11434)
-  VANTAGE_LLM_MODEL        force one model for every role
-  VANTAGE_LLM_PLANNER      per-role model override
-  VANTAGE_LLM_NARRATOR     per-role model override
-  VANTAGE_LLM_ADVISER      per-role model override
-  VANTAGE_LLM_EMBED        per-role model override
-  VANTAGE_LLM_TIMEOUT      seconds per request (default 60)
-  VANTAGE_LLM_ALLOW_CLOUD  set to 1 to allow ':cloud' models (default off)
+  MIMIR_LLM_MODEL        force one model for every role
+  MIMIR_LLM_PLANNER      per-role model override
+  MIMIR_LLM_NARRATOR     per-role model override
+  MIMIR_LLM_ADVISER      per-role model override
+  MIMIR_LLM_EMBED        per-role model override
+  MIMIR_LLM_TIMEOUT      seconds per request (default 60)
+  MIMIR_LLM_ALLOW_CLOUD  set to 1 to allow ':cloud' models (default off)
 """
 from __future__ import annotations
 
@@ -48,14 +48,14 @@ def _normalize_host(h):
 
 
 DEFAULT_HOST = _normalize_host(os.environ.get("OLLAMA_HOST"))
-# If the operator sets VANTAGE_LLM_TIMEOUT it wins for every role; otherwise we
+# If the operator sets MIMIR_LLM_TIMEOUT it wins for every role; otherwise we
 # use role-aware defaults, because a 27B narrator on CPU/partial-GPU is minutes-slow
 # while a 7B planner/adviser answers in seconds.
-_ENV_TIMEOUT = os.environ.get("VANTAGE_LLM_TIMEOUT", os.environ.get("VANTAGE_LLM_TIMEOUT"))
+_ENV_TIMEOUT = os.environ.get("MIMIR_LLM_TIMEOUT", os.environ.get("VANTAGE_LLM_TIMEOUT", os.environ.get("MIMIR_LLM_TIMEOUT", os.environ.get("VANTAGE_LLM_TIMEOUT"))))
 _ENV_TIMEOUT = float(_ENV_TIMEOUT) if (_ENV_TIMEOUT or "").strip() else None
 _ROLE_TIMEOUT = {"narrator": 900.0, "planner": 300.0, "adviser": 180.0, "embed": 120.0}
 _TIMEOUT = _ENV_TIMEOUT or 180.0                       # generic fallback (discovery calls)
-_ALLOW_CLOUD = os.environ.get("VANTAGE_LLM_ALLOW_CLOUD", os.environ.get("VANTAGE_LLM_ALLOW_CLOUD", "")) not in ("", "0", "false", "no")
+_ALLOW_CLOUD = os.environ.get("MIMIR_LLM_ALLOW_CLOUD", os.environ.get("VANTAGE_LLM_ALLOW_CLOUD", os.environ.get("MIMIR_LLM_ALLOW_CLOUD", ""))) not in ("", "0", "false", "no")
 
 
 def _role_timeout(role):
@@ -81,10 +81,10 @@ _PREF = {
     "embed":    ["bge", "nomic", "embed", "minilm", "mxbai"],
 }
 _ENV_ROLE = {
-    "planner":  "VANTAGE_LLM_PLANNER",
-    "narrator": "VANTAGE_LLM_NARRATOR",
-    "adviser":  "VANTAGE_LLM_ADVISER",
-    "embed":    "VANTAGE_LLM_EMBED",
+    "planner":  "MIMIR_LLM_PLANNER",
+    "narrator": "MIMIR_LLM_NARRATOR",
+    "adviser":  "MIMIR_LLM_ADVISER",
+    "embed":    "MIMIR_LLM_EMBED",
 }
 
 
@@ -137,7 +137,7 @@ def local_models():
 
 def pick(role="planner"):
     """Choose the best locally-available model for a role (None if none/offline)."""
-    forced = os.environ.get("VANTAGE_LLM_MODEL", os.environ.get("VANTAGE_LLM_MODEL")) or os.environ.get(_ENV_ROLE.get(role, ""), "")
+    forced = os.environ.get("MIMIR_LLM_MODEL", os.environ.get("VANTAGE_LLM_MODEL", os.environ.get("MIMIR_LLM_MODEL", os.environ.get("VANTAGE_LLM_MODEL")))) or os.environ.get(_ENV_ROLE.get(role, ""), "")
     if forced:
         if _is_cloud(forced) and not _ALLOW_CLOUD:
             return None                                    # refuse a cloud model by default
@@ -269,7 +269,7 @@ def main(argv=None):
         if not nfo["picks"]["planner"]:
             print("\n[llm] reachable, but no usable local model. Pull one, e.g. `ollama pull qwen2.5:7b`.")
             return 0
-        out = generate("Reply with exactly: vantage-llm-ok", role="planner",
+        out = generate("Reply with exactly: mimir-llm-ok", role="planner",
                        options={"temperature": 0})
         print("\n[llm] generation test:", out or "(no response)")
     return 0

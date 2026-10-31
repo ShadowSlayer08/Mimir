@@ -2,14 +2,18 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "vantage-web (web GUI + REST API)",
+      "name": "mimir-web (web GUI + REST API)",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["webapi.py", "C:/Users/pc/AppData/Local/Temp/claude/E--scripts-n-stuff-pentest-engine/322b67c6-5b5a-43f1-802f-56f3cf025b8a/scratchpad/eng.json", "--port", "8787"],
+      "runtimeArgs": [
+        "webapi.py",
+        "C:/Users/pc/AppData/Local/Temp/claude/E--scripts-n-stuff-pentest-engine/9b47e9f7-4456-4aa7-8ba8-77da6b8a4812/scratchpad/eng.json",
+        "--port", "8787"
+      ],
       "port": 8787,
       "url": "http://localhost:8787"
     },
     {
-      "name": "attack-dashboard (PySide6 desktop GUI — needs pip install .[gui] + a display)",
+      "name": "attack-dashboard (PySide6 — needs pip install .[gui] + a display)",
       "runtimeExecutable": "python",
       "runtimeArgs": ["attack_dashboard.py"],
       "port": null
@@ -18,12 +22,6 @@
       "name": "pentest-console (PySide6 GUI)",
       "runtimeExecutable": "python",
       "runtimeArgs": ["pentest_console.py", "tests/fixtures/full_scan.xml"],
-      "port": null
-    },
-    {
-      "name": "nmap-analyzer (Tkinter GUI)",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["nmap_analyzer.py", "tests/fixtures/full_scan.xml"],
       "port": null
     },
     {

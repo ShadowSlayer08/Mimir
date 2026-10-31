@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""vantage.sdk.base — contract for third-party modules.
+"""mimir.sdk.base — contract for third-party modules.
 
 ARES-inspired `BaseModule[P, R]` + typed `ModuleParams`, implemented on stdlib
 dataclasses to keep the engine dependency-light. A third-party module declares:
 
     from dataclasses import dataclass
-    from vantage.sdk import BaseModule, ModuleParams, module_result
+    from mimir.sdk import BaseModule, ModuleParams, module_result
 
     @dataclass
     class HelloParams(ModuleParams):
@@ -27,10 +27,10 @@ dataclasses to keep the engine dependency-light. A third-party module declares:
                          "purpose": "Trivial example."}])]
 
     # entry_points section in pyproject.toml:
-    #   [project.entry-points."vantage.modules"]
+    #   [project.entry-points."mimir.modules"]
     #   example_hello = "mypkg:HelloModule"
 
-The host (vantage) applies ROE / lessons / qualia / opsec on top; the operator
+The host (mimir) applies ROE / lessons / qualia / opsec on top; the operator
 runs each staged step by hand. **No module ever executes a payload** — the SDK
 has no `run()` method, only `assess_target(target, findings)`.
 """
@@ -150,7 +150,7 @@ class BaseModule:
 
 # --------------------------------------------------------------------------- #
 # Entry-point group used by the host (if setuptools entry-points are discovered).
-ENTRY_POINT_GROUP = "vantage.modules"
+ENTRY_POINT_GROUP = "mimir.modules"
 
 
 def discover(docs_dir=None):

@@ -1,6 +1,6 @@
-# vantage viewer (Flutter desktop)
+# mimir viewer (Flutter desktop)
 
-A **read-only** desktop frontend for the vantage pentest orchestration engine.
+A **read-only** desktop frontend for the mimir pentest orchestration engine.
 
 > **Authorized / lab / CTF use only.** This app **executes nothing** — no scans,
 > no exploits, no tooling. It **displays** an exported engagement and **copies**
@@ -14,7 +14,7 @@ side effect it has is writing a command string to the system clipboard.
 
 ## Where this fits
 
-`vantage` (the PySide6 thick client) and `vantage-cli` (`assess.py`) are the
+`mimir` (the PySide6 thick client) and `mimir-cli` (`assess.py`) are the
 operator's working tools — they hold the network position and shell out to nmap.
 This Flutter app is a **portable viewer** for the engagement they produce: open
 it anywhere (a teammate's laptop, a reporting box) to review hosts, findings,
@@ -27,11 +27,11 @@ The app renders a single JSON document — the **engagement contract** — produ
 by the engine:
 
 ```
-vantage-cli <target | --from-xml scan.xml | --from-dir evidence/> --yes \
+mimir-cli <target | --from-xml scan.xml | --from-dir evidence/> --yes \
     --emit-json engagement.json
 ```
 
-(`vantage-cli` is the installed console script for `assess.py`. The engine
+(`mimir-cli` is the installed console script for `assess.py`. The engine
 runs the scope gate + detection-only scan + analysis + staging and writes the
 contract.) Then, in the app: **Open engagement JSON** and pick `engagement.json`.
 You can also open any previously exported engagement file offline. The app never
@@ -110,7 +110,7 @@ Notes:
 
 ## Boundary reminder
 
-If you ever extend this app to invoke `vantage-cli` directly, it must only
+If you ever extend this app to invoke `mimir-cli` directly, it must only
 ever call it with `--emit-json` (the engine keeps its own scope gate). Never let
 the frontend call `nmap` or any tooling, and never add an exploit runner — that
 would violate the project constitution (`docs/instructions.md`).
