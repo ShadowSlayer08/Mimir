@@ -2,7 +2,19 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "mimir-web (web GUI + REST API)",
+      "name": "mimir-ops (operator web app — auth + engagement workflow)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m", "mimir_web.app",
+        "--db", "C:/Users/pc/AppData/Local/Temp/claude/E--scripts-n-stuff-pentest-engine/9b47e9f7-4456-4aa7-8ba8-77da6b8a4812/scratchpad/mimir.db",
+        "--art-root", "C:/Users/pc/AppData/Local/Temp/claude/E--scripts-n-stuff-pentest-engine/9b47e9f7-4456-4aa7-8ba8-77da6b8a4812/scratchpad/mimir-art",
+        "--port", "8788"
+      ],
+      "port": 8788,
+      "url": "http://localhost:8788"
+    },
+    {
+      "name": "mimir-web (read-only engagement viewer)",
       "runtimeExecutable": "python",
       "runtimeArgs": [
         "webapi.py",
@@ -13,21 +25,9 @@
       "url": "http://localhost:8787"
     },
     {
-      "name": "attack-dashboard (PySide6 — needs pip install .[gui] + a display)",
+      "name": "attack-dashboard (PySide6 — needs pip install .[gui])",
       "runtimeExecutable": "python",
       "runtimeArgs": ["attack_dashboard.py"],
-      "port": null
-    },
-    {
-      "name": "pentest-console (PySide6 GUI)",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["pentest_console.py", "tests/fixtures/full_scan.xml"],
-      "port": null
-    },
-    {
-      "name": "assess (CLI pipeline)",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["assess.py", "--from-xml", "tests/fixtures/full_scan.xml", "--yes"],
       "port": null
     }
   ]

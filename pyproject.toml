@@ -66,6 +66,8 @@ mimir-vault = "vault:main"
 mimir-opsec = "opsec:main"
 mimir-ct = "ct_monitor:main"
 mimir-roe-parse = "roe_parse:main"
+mimir-ops = "mimir_web.app:main"
+mimir-crucible = "crucible_bridge:main"
 
 # Flat layout: enumerate every shipped top-level module explicitly, plus the
 # modules/ code package and the docs/ knowledge base as importable DATA
@@ -102,6 +104,7 @@ py-modules = [
     "exploit_refs",
     "cvss4",
     "roe",
+    "crucible_bridge",
     "timeline",
     "vault",
     "opsec",
@@ -115,7 +118,7 @@ py-modules = [
 # 'docs' / 'docs.modules' are data-only packages carrying the Markdown KB so it
 # ships in the wheel and is addressable via importlib.resources.files('docs').
 # Requires docs/__init__.py and docs/modules/__init__.py marker files.
-packages = ["modules", "docs", "docs.modules", "docs.appsec", "evals", "sdk"]
+packages = ["modules", "docs", "docs.modules", "docs.appsec", "evals", "sdk", "mimir_web"]
 include-package-data = true
 
 [tool.setuptools.package-data]
