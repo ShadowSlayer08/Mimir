@@ -251,7 +251,15 @@ function _renderGraph(){
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.style.display='block';
   // defs: arrowhead marker
   const defs=document.createElementNS(svgNS,'defs');
-  defs.innerHTML='<marker id=ah viewBox="0 0 10 10" refX="18" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7b8aa2"/></marker>';
+  // Use createElementNS — innerHTML on an SVG element parses as HTML, not SVG, so markers are silently discarded.
+  const marker=document.createElementNS(svgNS,'marker');
+  marker.setAttribute('id','ah');marker.setAttribute('viewBox','0 0 10 10');
+  marker.setAttribute('refX','18');marker.setAttribute('refY','5');
+  marker.setAttribute('markerWidth','7');marker.setAttribute('markerHeight','7');
+  marker.setAttribute('orient','auto-start-reverse');
+  const mpath=document.createElementNS(svgNS,'path');
+  mpath.setAttribute('d','M0,0 L10,5 L0,10 z');mpath.setAttribute('fill','#7b8aa2');
+  marker.appendChild(mpath);defs.appendChild(marker);
   svg.appendChild(defs);
   const gE=document.createElementNS(svgNS,'g');svg.appendChild(gE);
   const gL=document.createElementNS(svgNS,'g');svg.appendChild(gL);

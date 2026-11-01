@@ -185,6 +185,11 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._guard_and_render("users", con)
             if path == "/audit":
                 return self._guard_and_render("audit", con)
+            if path == "/modules":
+                return self._guard_modules_overview(con)
+            if path == "/recon":
+                qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                return self._guard_recon(con, qs.get("domain", [""])[0])
             if path.startswith("/engagements/"):
                 tail = path[len("/engagements/"):]
                 if tail.endswith("/view"):
@@ -243,6 +248,63 @@ class _Handler(BaseHTTPRequestHandler):
             return self._html(_views.render_users(user, _db.list_users(con)))
         if which == "audit":
             return self._html(_views.render_audit(user, _db.recent_audit(con, limit=200)))
+
+    def _guard_modules_overview(self, con):
+        user = self._require_user(con)
+        if not user:
+            return
+        # Build the module list from the KB + built-in fallbacks.
+        try:
+            from knowledge_loader import load_knowledge
+            kb = load_knowledge()
+            kb_mods = kb.modules
+        except Exception:
+            kb_mods = {}
+        PILLARS = {
+            "web_app": "AppSec — Web / API / Mobile / Thick",
+            "api": "AppSec — Web / API / Mobile / Thick",
+            "mobile": "AppSec — Web / API / Mobile / Thick",
+            "thick": "AppSec — Web / API / Mobile / Thick",
+            "cloud": "AppSec — Cloud / K8s / Hypervisor / Identity",
+            "k8s": "AppSec — Cloud / K8s / Hypervisor / Identity",
+            "hypervisor": "AppSec — Cloud / K8s / Hypervisor / Identity",
+            "identity": "AppSec — Cloud / K8s / Hypervisor / Identity",
+            "wireless": "AppSec — Wireless / Source / AI target / Web Recon",
+            "source": "AppSec — Wireless / Source / AI target / Web Recon",
+            "ai_target": "AppSec — Wireless / Source / AI target / Web Recon",
+            "web_recon": "AppSec — Wireless / Source / AI target / Web Recon",
+            "active_directory": "Infrastructure — AD / Windows",
+            "smb": "Infrastructure — AD / Windows",
+            "rdp": "Infrastructure — AD / Windows",
+            "winrm": "Infrastructure — AD / Windows",
+            "ics": "Infrastructure — ICS / IoT",
+            "iot": "Infrastructure — ICS / IoT",
+            "rtsp": "Infrastructure — ICS / IoT",
+            "printer": "Infrastructure — ICS / IoT",
+        }
+        info = []
+        for name, m in sorted(kb_mods.items()):
+            info.append({
+                "name": name,
+                "kind": m.get("scope", "service"),
+                "pillar": PILLARS.get(name, "Infrastructure — Network services"),
+                "checks": len(m.get("checks", [])),
+                "desc": (m.get("summary", "") or "")[:120],
+            })
+        return self._html(_views.render_modules_overview(user, info))
+
+    def _guard_recon(self, con, domain):
+        user = self._require_user(con)
+        if not user:
+            return
+        try:
+            import recon_chain, adversary
+        except Exception as exc:
+            return self._html(f'<div class="err">recon_chain unavailable: {exc}</div>',
+                              status=500)
+        chain = recon_chain.build(domain) if domain else None
+        profiles = adversary.list_profiles()
+        return self._html(_views.render_recon_chain(user, domain, chain, profiles))
 
     def _guard_engagement_detail(self, con, raw_eid):
         user = self._require_user(con)

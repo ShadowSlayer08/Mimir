@@ -108,6 +108,8 @@ def _shell(title, body, user=None, nav_active=None, extra_head=""):
         navs = [
             ("Engagements", "/engagements", "engagements"),
             ("New",         "/engagements/new", "new"),
+            ("Recon",       "/recon", "recon"),
+            ("Modules",     "/modules", "modules"),
             ("Users",       "/users", "users"),
             ("Audit",       "/audit", "audit"),
         ]
@@ -416,6 +418,89 @@ def render_users(user, users):
 
 
 # --------------------------------------------------------------------------- #
+def render_modules_overview(user, modules_info):
+    """A single page listing every assessment module Mimir ships — a 'what can I
+    pentest' index. `modules_info` is a list of {name, kind, pillar, checks}."""
+    by_pillar = {}
+    for m in modules_info:
+        by_pillar.setdefault(m["pillar"], []).append(m)
+    sections = []
+    for pillar in sorted(by_pillar):
+        rows = "".join(
+            f'<tr><td class="mono"><b>{_h(m["name"])}</b></td>'
+            f'<td class="dim">{_h(m.get("kind", ""))}</td>'
+            f'<td>{m.get("checks", "-")}</td>'
+            f'<td class="dim">{_h(m.get("desc", ""))}</td></tr>'
+            for m in sorted(by_pillar[pillar], key=lambda x: x["name"]))
+        sections.append(
+            f'<div class="card"><h2>{_h(pillar)}</h2>'
+            f'<table class="table"><tr><th>Module</th><th>Kind</th>'
+            f'<th>Checks</th><th>Coverage</th></tr>{rows}</table></div>')
+    body = f"""
+<div class="wrap">
+  <div class="hero"><div class="seal">ᚹ</div>
+    <div><h1 style="margin:0">Modules overview</h1>
+    <div class="dim">{len(modules_info)} assessment modules across all pillars</div></div>
+  </div>
+  {"".join(sections)}
+</div>"""
+    return _shell("Modules", body, user, nav_active="modules")
+
+
+def render_recon_chain(user, domain="", chain=None, adv_profiles=None):
+    adv_profiles = adv_profiles or []
+    chain_html = ""
+    if chain:
+        phase_blocks = []
+        for ph in chain["phases"]:
+            if not ph["steps"]:
+                continue
+            step_rows = "".join(
+                f'<tr><td class="mono">{s["order"]}</td>'
+                f'<td><b>{_h(s["name"])}</b> <span class="chip">{_h(s["attack"])}</span>'
+                f'<div class="dim" style="font-size:12px;margin-top:4px">{_h(s["purpose"])}</div></td>'
+                f'<td><span class="pill">{_h(s["risk"])}</span></td>'
+                f'<td><span class="pill">noise {s["noise"]}/10</span></td>'
+                f'<td><div class="mono" style="font-size:11px;max-width:380px;overflow:auto">{_h(s["command"])}</div></td>'
+                f'</tr>'
+                for s in ph["steps"])
+            phase_blocks.append(
+                f'<div class="card"><h2>Phase {_h(ph["label"])}</h2>'
+                f'<table class="table"><tr><th>#</th><th>Step</th>'
+                f'<th>Risk</th><th>Noise</th><th>Command</th></tr>'
+                f'{step_rows}</table></div>')
+        chain_html = f'<div class="banner">Recon chain for <b>{_h(chain["domain"])}</b> — {sum(len(p["steps"]) for p in chain["phases"])} staged steps across {len(chain["phases"])} phases. The operator runs each manually.</div>' + "".join(phase_blocks)
+    adv_rows = "".join(
+        f'<tr><td class="mono"><b>{_h(p["id"])}</b></td>'
+        f'<td>{_h(p["name"])}</td><td>{p["ttps"]}</td>'
+        f'<td class="dim" style="font-size:12px">{_h(p["notes"][:160])}</td></tr>'
+        for p in adv_profiles)
+    body = f"""
+<div class="wrap">
+  <div class="hero"><div class="seal">ᚠ</div>
+    <div><h1 style="margin:0">Recon &amp; adversary</h1>
+    <div class="dim">5-phase passive-first recon chain · {len(adv_profiles)} adversary emulation profiles</div></div>
+  </div>
+  <div class="card">
+    <h2>Build a recon chain</h2>
+    <form method="get" action="/recon">
+      <div class="row">
+        <div><label>Apex domain</label>
+          <input type="text" name="domain" value="{_h(domain)}" placeholder="acme.example" required></div>
+        <div style="flex:0;min-width:160px"><label>&nbsp;</label><button class="btn">Build chain</button></div>
+      </div>
+    </form>
+  </div>
+  {chain_html}
+  <div class="card">
+    <h2>Adversary emulation profiles</h2>
+    <p class="dim">Each profile is an ordered TTP sequence drawn from a documented threat actor's public playbook — use them to overlay the co-pilot ranking or walk the actor's methodology on your engagement.</p>
+    <table class="table"><tr><th>Profile</th><th>Name</th><th>TTPs</th><th>Notes</th></tr>{adv_rows}</table>
+  </div>
+</div>"""
+    return _shell("Recon & adversary", body, user, nav_active="recon")
+
+
 def render_audit(user, rows):
     html_rows = "".join(
         f'<tr><td class="mono dim">{_h((r["ts"] or "")[:19])}</td>'
