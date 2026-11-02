@@ -48,4 +48,4 @@ run python adversary.py show apt29
 step "6 · Serve the read-only engagement viewer (Ctrl-C to stop)"
 printf "\n\e[1;33m› mimir-web /tmp/eng.json  —  browse at http://localhost:8787\e[0m\n"
 printf "\e[1;33m› mimir-ops                 —  the full operator-workflow web app\e[0m\n"
-printf "\n\e[0;32mDone.\e[0m  Repo: github.com/ShadowSlayer08/mimir\n\n"
+printf "\n\e[0;32mDone.\e[0m  Repo: github.com/ShadowSlayer08/Mimir\n\n"

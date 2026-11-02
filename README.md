@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ShadowSlayer08/mimir/actions/workflows/ci.yml"><img alt="tests" src="https://img.shields.io/badge/tests-229%2F229%20passing-3fd07d?style=flat-square"></a>
+  <a href="https://github.com/ShadowSlayer08/Mimir/actions/workflows/ci.yml"><img alt="tests" src="https://img.shields.io/badge/tests-229%2F229%20passing-3fd07d?style=flat-square"></a>
   <a href="pyproject.toml"><img alt="python" src="https://img.shields.io/badge/python-3.11%2B-5b9dff?style=flat-square"></a>
   <a href="docs/"><img alt="frameworks" src="https://img.shields.io/badge/ATT%26CK%20%C2%B7%20OWASP%20%C2%B7%20MASVS%20%C2%B7%20CWE-mapped-ff3355?style=flat-square"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0%2B-8b91a3?style=flat-square"></a>
@@ -63,7 +63,7 @@
 
 ```bash
 # install (headless CLI; add [gui] for the PySide6 console; [pdf] for WeasyPrint)
-pip install git+https://github.com/ShadowSlayer08/mimir.git
+pip install git+https://github.com/ShadowSlayer08/Mimir.git
 
 # build an engagement from an nmap XML in one shot (methodology + ranking + report)
 mimir-cli --from-xml scan.xml --yes \
@@ -150,16 +150,16 @@ mimir-ops                                   # → http://localhost:8788
 
 | Command | What you get |
 | --- | --- |
-| `pip install git+https://github.com/ShadowSlayer08/mimir.git` | headless CLI + 20 `mimir-*` entry points |
-| `pip install 'mimir[gui] @ git+https://github.com/ShadowSlayer08/mimir.git'` | + PySide6 (Qt6) desktop console |
-| `pip install 'mimir[pdf] @ git+https://github.com/ShadowSlayer08/mimir.git'` | + WeasyPrint PDF report export |
-| `pip install 'mimir[roe-pdf] @ git+https://github.com/ShadowSlayer08/mimir.git'` | + pypdf ROE PDF parsing |
-| `pip install 'mimir[all] @ git+https://github.com/ShadowSlayer08/mimir.git'` | everything |
+| `pip install git+https://github.com/ShadowSlayer08/Mimir.git` | headless CLI + 20 `mimir-*` entry points |
+| `pip install 'mimir[gui] @ git+https://github.com/ShadowSlayer08/Mimir.git'` | + PySide6 (Qt6) desktop console |
+| `pip install 'mimir[pdf] @ git+https://github.com/ShadowSlayer08/Mimir.git'` | + WeasyPrint PDF report export |
+| `pip install 'mimir[roe-pdf] @ git+https://github.com/ShadowSlayer08/Mimir.git'` | + pypdf ROE PDF parsing |
+| `pip install 'mimir[all] @ git+https://github.com/ShadowSlayer08/Mimir.git'` | everything |
 
 ### Docker
 
 ```bash
-git clone https://github.com/ShadowSlayer08/mimir.git && cd mimir
+git clone https://github.com/ShadowSlayer08/Mimir.git && cd mimir
 python build_app.py        # per-OS native binary via PyInstaller
 ```
 
@@ -183,7 +183,7 @@ A Dockerfile ships in roadmap Wave C — track it in [`CHANGELOG.md`](CHANGELOG.
 ## 🔧 Dev
 
 ```bash
-git clone https://github.com/ShadowSlayer08/mimir.git && cd mimir
+git clone https://github.com/ShadowSlayer08/Mimir.git && cd mimir
 pip install -e .                                    # editable install
 python run_tests.py                                 # 229/229
 python validate_kb.py                               # 46 modules, 55 docs
