@@ -1,168 +1,225 @@
-# Mimir
+<p align="center">
+  <img src="docs/assets/mimir-card.svg" width="760" alt="Mimir — keeper of the well of knowledge" />
+</p>
 
-[![CI](https://github.com/ShadowSlayer08/mimir/actions/workflows/ci.yml/badge.svg)](https://github.com/ShadowSlayer08/mimir/actions/workflows/ci.yml)
-[![License: AGPL v3+](https://img.shields.io/badge/License-AGPL%20v3+-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-229%2F229-brightgreen)](tests/)
-[![Eval recall](https://img.shields.io/badge/eval%20recall-100%25%20(7%20scenarios)-brightgreen)](evals/)
-[![Modules](https://img.shields.io/badge/modules-46-blueviolet)](modules/)
-[![Code of Conduct](https://img.shields.io/badge/CoC-Contributor%20Covenant%202.1-ff69b4.svg)](CODE_OF_CONDUCT.md)
+<h1 align="center">Mimir</h1>
 
-> **The keeper of the well of knowledge.**
-> A knowledge-driven pentest / red-team **orchestration** engine — it plans and
-> stages an engagement end-to-end so a human operator can run it.
+<p align="center">
+  <b><i>Knowledge-driven pentest orchestration. The engine stages; the operator runs.</i></b>
+</p>
 
-**Authorized / lab / CTF / VAPT / red-team use only.** See
-[`docs/instructions.md`](docs/instructions.md) — the constitution.
+<p align="center">
+  Mimir plans and <b>stages</b> an authorised engagement end-to-end — scope, scan, assess,
+  correlate, stage, report — then hands the operator a MITRE ATT&amp;CK-mapped runbook
+  they execute by hand. The engine itself fires no exploits, operates no C2.
+</p>
+
+<p align="center">
+  <a href="https://github.com/ShadowSlayer08/mimir/actions/workflows/ci.yml"><img alt="tests" src="https://img.shields.io/badge/tests-229%2F229%20passing-3fd07d?style=flat-square"></a>
+  <a href="pyproject.toml"><img alt="python" src="https://img.shields.io/badge/python-3.11%2B-5b9dff?style=flat-square"></a>
+  <a href="docs/"><img alt="frameworks" src="https://img.shields.io/badge/ATT%26CK%20%C2%B7%20OWASP%20%C2%B7%20MASVS%20%C2%B7%20CWE-mapped-ff3355?style=flat-square"></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0%2B-8b91a3?style=flat-square"></a>
+  <a href="docs/instructions.md"><img alt="status" src="https://img.shields.io/badge/authorized%20use%20only-ffa53b?style=flat-square"></a>
+</p>
+
+<p align="center">
+  <sub>46 modules · 20 CLIs · 7 CI eval scenarios at 100% recall · zero payloads in-tree</sub>
+</p>
+
+> ᛗ **Mimir is a staging-only tool.** It analyses, correlates, ranks, narrates, and
+> hands the operator a runbook. It does not execute payloads, operate C2, or
+> auto-exploit anything. Attack paths are *staged* for a human to run manually,
+> in authorised scope, with their own tooling.
+
+```console
+╔══════════════════════════════════════════════════════════════════════════╗
+║  MIMIR 6.0.0 · knowledge-driven pentest orchestration                    ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+  ᛗ Target        10.0.0.0/24 (Acme Q4 Internal · US-CA · stealth profile)
+  ᛗ Scope gate    ✓ in_scope / ✗ dc02.corp.lab / ✗ *.gov · *.mil · *.edu
+  ᛗ Methodology   loaded 46 modules · 55 knowledge docs
+
+  [ PASS ] nmap ingest ····················· 2 hosts · 23 ports
+  [ PASS ] service correlation ············· 25 findings · 11 CVEs
+  [ PASS ] attack-path engine ·············· 6 paths  (1 domain · 2 rce · 2 lateral · 1 webapp)
+  [ PASS ] co-pilot ranking (local LLM) ···· top-9 next actions
+  [ WARN ] 3 steps exceed stealth ceiling ·· lower profile or stage off-hours
+
+  ┌─ Top-3 next actions ────────────────────────────────────────────────┐
+  │  #1  score 90  foothold  RCE on dc01 via EternalBlue (MS17-010)     │
+  │  #2  score 90  quick-win EternalBlue — confirmed critical exposure  │
+  │  #3  score 82  objective Domain compromise via dc01.corp.lab        │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  ᛗ Report        /tmp/report.html  ·  /tmp/runbook.md  ·  /tmp/eng.json
+  ᛗ Audit trail   recorded 14 actions to engagement ledger
+  ᛗ Boundary      staging-only. Operator runs each step manually. ✦
+```
 
 ---
 
-## Why Mimir
-
-A modern engagement produces more findings than any operator can triage, more
-attack paths than any team can run, and more deliverables than any report can
-hold. Mimir sits above the tools and the ledger and gives the operator a
-single, measurable, auditable workflow:
-
-- **Methodology, not weaponization.** Mimir does **not** run exploits, build
-  payloads, or operate C2. Every attack step is staged with its MITRE ATT&CK
-  technique + abuse insight + reference commands for a human to execute
-  manually, in authorized scope, with their own tooling.
-- **Knowledge in docs.** Methodology and routing live in `docs/*.md` as fenced
-  YAML. The Python is a generic loader — a doc edit ships new coverage.
-- **LLM-first with deterministic fallback.** Every qualitative decision
-  (ranking, re-ordering attack paths, narrating a stage, writing an exec
-  summary) routes through `qualia.decide` — a local Ollama model if present,
-  the deterministic weighted ranker otherwise. The engine works airgapped.
-- **Measured, not asserted.** The eval harness (`mimir-bench`) scores the
-  engine against a scenario corpus — regressions are a red CI, not an
-  argument.
-
-## What ships
-
-- **Full-spectrum nmap analyzer** + 46 assessment modules covering 129 services
-  (Windows / Linux / Database / Mail / DNS / VoIP / VPN / ICS/OT / IoT / IPMI /
-  Printer / SNMP / RTSP / and more).
-- **Target-driven AppSec pillar** — web (OWASP WSTG) / API (OWASP API Top 10) /
-  mobile (MASVS) / thick client (Win / Linux / **macOS Mach-O**) / cloud
-  (ATT&CK-Cloud: AWS / Azure / GCP) / Kubernetes (ATT&CK-Containers) /
-  wireless / supply-chain / SaaS identity / hypervisor.
-- **Attack path engine** — correlates findings into MITRE-ATT&CK-mapped multi-
-  step paths (Initial Access → Lateral → Credential → Domain Compromise).
-- **AD graph** — ingests BloodHound / SoapHound / RustHound; stages path-to-DA.
-- **Local LLM co-pilot** (optional, offline-safe) — Planner / Narrator /
-  Adviser running against Ollama. Cloud models excluded by default.
-- **Read-only MCP server** — expose an engagement as query-only tools to any
-  LLM client (Claude Desktop, Cursor, Windsurf).
-- **Governance** — Rules of Engagement YAML with scope / technique / risk /
-  time-window gates, plus a hard guardrail for `.gov` / `.mil` / `.edu` /
-  `.int` TLDs.
-- **Encrypted vault** — AES-256-GCM credential store for operator secrets
-  (never written into staged commands or reports).
-- **Enrichment** — live CISA-KEV + FIRST-EPSS; CVSS 4.0 vectors; CVE →
-  public exploit references (never payloads).
-- **Reporting** — Markdown / HTML / ATT&CK Navigator layer / engagement
-  timeline / operator runbook / signed engagement JSON contract.
-- **Eval harness** — 7 scenario YAMLs / 102 assertions / 100 % recall; A/B
-  deterministic vs LLM-first.
-- **Ledger + lessons** — persistent SQLite history with run diff, triage, and
-  a bounded "what worked" bias feeding the co-pilot's ranking.
-
-## Install
-
-Python **3.11+**. Install via pip/pipx or build an OS-native binary:
+## ⚡ 60-second start
 
 ```bash
-pip install .[gui]          # GUI (PySide6) + CLI       (or: pipx install ".[gui]")
-pip install .               # headless CLI engine only
+# install (headless CLI; add [gui] for the PySide6 console; [pdf] for WeasyPrint)
+pip install git+https://github.com/ShadowSlayer08/mimir.git
+
+# build an engagement from an nmap XML in one shot (methodology + ranking + report)
+mimir-cli --from-xml scan.xml --yes \
+          --emit-json eng.json --report report.html --runbook runbook.md
+
+# ranked next-best actions, with reasoning trace
+mimir-copilot eng.json --top 10 --why
+
+# read-only engagement viewer (dashboard + findings + attack paths + graph)
+mimir-web eng.json
 ```
+
+The full operator-workflow web app — auth, engagement wizard, scope + ROE
+editor, attack-initiation launcher, live viewer:
 
 ```bash
-# Native binary (no Python required on the target machine)
-python build_app.py         # dist/Mimir.exe | dist/Mimir | dist/Mimir.app
+mimir-ops --bootstrap-admin you@example.com 'your-passphrase'
+mimir-ops                                   # → http://localhost:8788
 ```
 
-Live scanning needs **nmap** on `PATH` (Windows: Npcap too). Offline ingest
-works without it.
+---
 
-## Quickstart (60 seconds)
+## ⚔️ Arsenal
+
+| Pillar | Modules | Coverage |
+| --- | --- | --- |
+| **Infra · service-driven** | 34 | SMB · RDP · WinRM · AD · SSH · FTP · Telnet · NFS · SNMP · IPMI · DNS · mail · VoIP · VPN · NTP · TFTP · printers · RTSP · AFP · iSCSI · x11 · rservices · rsync · ICS/OT · IoT · ... |
+| **Infra · correlation** | — | nmap full-spectrum · BloodHound/SoapHound/RustHound AD-graph ingest · path-to-DA · kill-chain assembly |
+| **AppSec · web / API** | 2 | OWASP WSTG (24 checks) · OWASP API Top 10 (16 checks) |
+| **AppSec · mobile / thick** | 2 | MASVS (Android + iOS) · Windows + Linux + macOS binaries (codesign, Mach-O, dylib hijack, Keychain, ELF checksec, SUID) |
+| **AppSec · cloud / infra** | 4 | AWS/Azure/GCP (ATT&CK-Cloud) · Kubernetes (ATT&CK-Containers) · Hypervisor (ESXi/vCenter/Proxmox/Xen/Hyper-V) · Entra/Okta/Workspace/ADFS |
+| **AppSec · wireless / RF** | 1 | Wi-Fi · BLE · Zigbee · sub-GHz SDR |
+| **AppSec · source / supply chain** | 1 | SAST · SCA · SBOM · IaC · CI/CD · OSV verdicts |
+| **AppSec · recon / discovery** | 1 | subdomain enum + takeover · hidden vhost · CDN/WAF origin · GraphQL introspection · web cache poisoning |
+| **AppSec · AI/LLM target** | 1 | OWASP LLM Top 10 (prompt injection · jailbreak · output handling · tool/RAG abuse · model extraction · MCP surface) |
+| **Recon chain** | — | 5-phase pipeline (passive → active sub → hosts → web → vuln reference) · 22 ordered steps per domain |
+| **Adversary emulation** | — | 8 Caldera-style profiles (APT29, APT28, FIN7, Volt Typhoon, Lazarus, Conti/LockBit + synthetic) |
+| **Plugins** | ∞ | `mimir.modules` entry-point group · `plugins/example/` reference impl · `sdk.TestHarness` for isolated tests |
+
+---
+
+## 🧠 What makes it different
+
+- **Methodology, not weaponization.** The staging-only boundary is *architectural*,
+  not a content filter — there is no execution engine inside Mimir to turn off.
+- **Knowledge in docs.** Methodology, routing and ATT&CK maps live in `docs/*.md`
+  as fenced YAML. The Python is a generic loader; a doc edit ships new coverage.
+- **LLM-first with deterministic fallback.** Every qualitative decision (ranking,
+  attack-path re-rank, narrative, exec summary, host grade justification) routes
+  through `qualia.decide` — a local Ollama model if present, the deterministic
+  weighted ranker otherwise. The engine works airgapped.
+- **Local-model privacy.** Cloud (`:cloud`) models are *excluded* unless the
+  operator sets `MIMIR_LLM_ALLOW_CLOUD=1`. Engagement data stays on the box.
+- **Measured, not asserted.** The eval harness scores the engine against a
+  scenario corpus — regressions are a red CI, not an email thread. 7 scenarios /
+  102 assertions / 100% recall.
+- **Pairs with Crucible.** Bidirectional HMAC-signed bridge (`mimir-crucible`) so
+  the AI-red-team tool and the pentest engine query each other's engagements.
+
+---
+
+## 🛡️ Safeguards
+
+- **Rules-of-Engagement hard-gates.** Machine-checked scope filter: CIDR +
+  hostname-suffix + exact-match in/out-of-scope, time windows, forbidden
+  techniques / kinds / risk-tags, jurisdiction tag.
+- **Institutional TLD block.** `.gov` / `.mil` / `.edu` / `.int` + country
+  variants (`.gov.uk`, `.gob.es`, `.gouv.fr`, `.ac.jp`, ...) **always lose**
+  to the hard gate, even if the operator lists them in-scope. Opt-out requires
+  explicit `MIMIR_ALLOW_INSTITUTIONAL=1`.
+- **OPSEC noise ceiling.** Every staged step carries a `noise` score (0-10) from
+  its ATT&CK id. Profile `stealth` ≤ 3, `normal` ≤ 7, `aggressive` ≤ 10.
+- **AES-256-GCM credential vault.** Scrypt-derived key (600k iter); harvested
+  secrets stay off disk + logs. Context-aware commands *never* auto-fill
+  `<pass>` / `<key>` / `<token>` placeholders.
+- **No payloads in-tree.** CI gates every commit with a boundary grep against
+  the source — a PR that introduces payload / C2 / auto-exploit code fails CI.
+- **Append-only audit trail.** Every state-changing action in the web app
+  writes an audit row — who / when / which engagement / what detail.
+
+---
+
+## 🎯 Install profiles
+
+| Command | What you get |
+| --- | --- |
+| `pip install git+https://github.com/ShadowSlayer08/mimir.git` | headless CLI + 20 `mimir-*` entry points |
+| `pip install 'mimir[gui] @ git+https://github.com/ShadowSlayer08/mimir.git'` | + PySide6 (Qt6) desktop console |
+| `pip install 'mimir[pdf] @ git+https://github.com/ShadowSlayer08/mimir.git'` | + WeasyPrint PDF report export |
+| `pip install 'mimir[roe-pdf] @ git+https://github.com/ShadowSlayer08/mimir.git'` | + pypdf ROE PDF parsing |
+| `pip install 'mimir[all] @ git+https://github.com/ShadowSlayer08/mimir.git'` | everything |
+
+### Docker
 
 ```bash
-# Ingest an existing nmap XML, derive attack paths, emit a signed engagement JSON
-mimir-cli --from-xml tests/fixtures/full_scan.xml --yes --emit-json eng.json
-
-# Browse the engagement in the local read-only web GUI
-mimir-web eng.json                              # http://localhost:8787
-
-# Ranked next-best actions (deterministic ranker + score trace)
-mimir-copilot eng.json --why
-
-# Operator runbook + LLM-expanded playbook (needs Ollama; offline-safe otherwise)
-mimir-advisor eng.json --runbook rb.md
-
-# Measured regression check
-mimir-bench                                     # all scenarios, non-zero exit on any miss
+git clone https://github.com/ShadowSlayer08/mimir.git && cd mimir
+python build_app.py        # per-OS native binary via PyInstaller
 ```
 
-Full command list: `mimir-cli --help`, plus specialist entry points —
-`mimir-mcp`, `mimir-roe`, `mimir-timeline`, `mimir-vault`,
-`mimir-exploits`, `mimir-adgraph`, `mimir-lessons`, `mimir-bench`.
+A Dockerfile ships in roadmap Wave C — track it in [`CHANGELOG.md`](CHANGELOG.md).
 
-## Rules of Engagement (hard gates)
+---
 
-Every target host crosses two filters before the operator sees it staged:
+## 📊 Output
 
-1. **Hard institutional guardrail** — refuses `.gov` / `.mil` / `.edu` / `.int`
-   (plus country variants `.gov.uk`, `.gob.es`, `.gouv.fr`, `.ac.uk`, …) by
-   default. Override only with explicit operator consent via
-   `MIMIR_ALLOW_INSTITUTIONAL=1`.
-2. **ROE YAML** — scope (`in_scope` CIDR / hostname suffix / exact), time
-   windows, forbidden techniques (`T####`), forbidden attack-path kinds, and
-   forbidden risk tags (`intrusive`). Every rejection carries a reason + the
-   engagement's jurisdiction for the audit trail.
+| Artifact | Format | Opened by |
+| --- | --- | --- |
+| `engagement.json` | contract JSON | `mimir-web` (viewer) · `mimir-ops` (ops app) · `mimir-mcp` (MCP) |
+| `report.html` | styled HTML | any browser · PDF via `mimir[pdf]` |
+| `runbook.md` | checkbox playbook | the operator |
+| `navigator.json` | ATT&CK Navigator layer | [mitre-attack.github.io/attack-navigator](https://mitre-attack.github.io/attack-navigator/) |
+| `ledger.db` | SQLite | `mimir-timeline` (SVG stripe) · `mimir` ledger triage |
+| `recon chain` | Markdown · JSON | the operator · `mimir-ops` /recon page |
 
-```yaml
-# engagement.roe.yml
-engagement: acme-2026Q4
-jurisdiction: US-NY
-in_scope: [10.0.0.0/24, .corp.lab]
-out_of_scope: [10.0.0.99]
-allowed_windows: [{days: [mon,tue,wed,thu,fri], hours: ['18:00', '04:00']}]
-forbidden_techniques: [T1499, T1499.001]            # no DoS
-forbidden_risk: [intrusive]                          # VAPT mode
-```
+---
+
+## 🔧 Dev
 
 ```bash
-mimir-roe eng.json engagement.roe.yml --json eng.filtered.json
+git clone https://github.com/ShadowSlayer08/mimir.git && cd mimir
+pip install -e .                                    # editable install
+python run_tests.py                                 # 229/229
+python validate_kb.py                               # 46 modules, 55 docs
+python -m evals.bench                               # 7 scenarios @ 100% recall
+python -m evals.bench --compare-llm                 # A/B deterministic vs LLM (needs Ollama)
 ```
 
-## Repository health
+New module? Copy `plugins/example/` and rename. The `mimir.sdk` surface
+(`BaseModule` · `ModuleParams` · `module_result` · `TestHarness`) is the
+stable third-party contract. Register under the `mimir.modules` entry-point
+group and Mimir discovers it on next launch.
 
-- **193/193 tests pass.** `python run_tests.py`
-- **Knowledge base validates cleanly.** `python validate_kb.py`
-- **7 eval scenarios / 102 assertions / 100 % recall.** `mimir-bench`
-- CI (GitHub Actions) runs tests + KB check + evals on every PR, matrix
-  across Python 3.11 / 3.12 on Ubuntu / Windows / macOS.
+Methodology edits don't require Python — add a `docs/modules/<name>.md` or
+`docs/appsec/<name>.md` with the fenced `yaml` block, run `python validate_kb.py`.
 
-## Documentation
+---
 
-- [`docs/instructions.md`](docs/instructions.md) — the constitution (hard rules)
-- [`docs/developer_guide.md`](docs/developer_guide.md) — how to add a module
-- [`CLAUDE.md`](CLAUDE.md) / [`AGENTS.md`](AGENTS.md) — agent instructions and layout
-- [`docs/packaging.md`](docs/packaging.md) — pip, pipx, PyInstaller, Flutter viewer
-- [`SECURITY.md`](SECURITY.md) — reporting a vulnerability
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to help
+## ⚖️ Legal
 
-## License
+**Authorized use only.** Mimir is a staging engine for professional VAPT /
+red-team / CTF / lab work. Running it against systems you are not explicitly
+authorised to assess is unlawful in most jurisdictions. The hard-guardrail
+exists for a reason; the `MIMIR_ALLOW_INSTITUTIONAL=1` opt-out shifts the
+responsibility onto you.
 
-AGPL-3.0-or-later. See [`LICENSE`](LICENSE). Mimir is open — the AGPL
-protects against commercial repackaging that doesn't contribute back.
+Mimir is **AGPL-3.0-or-later**. If you run a hosted service on top of Mimir
+and modify the engine, the AGPL requires you to publish those modifications
+to your users under the same licence.
 
-## Legal and ethical reminder
+See [`docs/instructions.md`](docs/instructions.md) — the constitution.
+See [`SECURITY.md`](SECURITY.md) to report a vulnerability privately.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) to send a PR.
 
-Running network scans or application assessments against systems **without
-written authorization** is illegal in most jurisdictions. Mimir will refuse
-to help you do so — the hard guardrail is on by default, and the ROE scope gate
-and `--yes` authorization confirmation are not decorative. If you need to
-assess your own systems, your written engagement scope is the artifact Mimir
-expects. Everything else is out of bounds and will not be supported.
+---
+
+<p align="center">
+  <sub>Named after Mímir, the Norse keeper of the Well of Wisdom.
+  Odin traded an eye for a drink from Mímir's well. You get the drink without the trade. ᛗ</sub>
+</p>

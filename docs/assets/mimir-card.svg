@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 320" role="img" aria-label="Mimir — keeper of the well of knowledge">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#070910"/>
+      <stop offset="1" stop-color="#121725"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3d47d"/>
+      <stop offset="1" stop-color="#b8860b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#d4af37" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#d4af37" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="0.6" fill="#2b344a" opacity="0.6"/>
+    </pattern>
+  </defs>
+
+  <rect width="760" height="320" rx="18" fill="url(#bg)"/>
+  <rect width="760" height="320" rx="18" fill="url(#dots)"/>
+
+  <!-- left: large rune seal -->
+  <g transform="translate(140,160)">
+    <circle r="92" fill="url(#glow)"/>
+    <circle r="78" fill="none" stroke="#d4af37" stroke-width="1.2" opacity="0.9"/>
+    <circle r="68" fill="none" stroke="#d4af37" stroke-width="0.6" opacity="0.5"/>
+    <!-- inscribed Mimir rune "ᛗ" (Mannaz) centered -->
+    <text x="0" y="22"
+          font-family="'Palatino Linotype', Georgia, serif"
+          font-size="92" fill="url(#gold)" text-anchor="middle"
+          font-weight="500">ᛗ</text>
+    <!-- small runes orbiting (ᚠ ᚢ ᚦ ᚨ ᚱ) suggest the futhark alphabet -->
+    <g font-family="'Palatino Linotype', Georgia, serif" font-size="14"
+       fill="#d4af37" opacity="0.6" text-anchor="middle">
+      <text x="0" y="-82">ᚠ</text>
+      <text x="78" y="4">ᚢ</text>
+      <text x="55" y="60">ᚦ</text>
+      <text x="-55" y="60">ᚨ</text>
+      <text x="-78" y="4">ᚱ</text>
+    </g>
+  </g>
+
+  <!-- right: title block -->
+  <g transform="translate(290,100)">
+    <!-- Tagline eyebrow -->
+    <text font-family="ui-monospace, 'SF Mono', Consolas, monospace"
+          font-size="11" fill="#a1a9b8" letter-spacing="4" opacity="0.95">
+      ᛟ KNOWLEDGE-DRIVEN PENTEST ORCHESTRATION
+    </text>
+
+    <!-- The name -->
+    <text x="0" y="82" font-family="'Palatino Linotype', Georgia, serif"
+          font-size="90" font-weight="500" fill="#f3d47d"
+          letter-spacing="12">MIMIR</text>
+
+    <!-- Subtitle -->
+    <text x="0" y="128" font-family="'Palatino Linotype', Georgia, serif"
+          font-size="18" font-style="italic" fill="#e6eaf2" opacity="0.9">
+      · keeper of the well of knowledge ·
+    </text>
+
+    <!-- Terse selling line -->
+    <text x="0" y="166" font-family="ui-monospace, 'SF Mono', Consolas, monospace"
+          font-size="12" fill="#a1a9b8" letter-spacing="1.5">
+      ATT&amp;CK-mapped. Methodology, not weaponization. The engine stages;
+    </text>
+    <text x="0" y="184" font-family="ui-monospace, 'SF Mono', Consolas, monospace"
+          font-size="12" fill="#a1a9b8" letter-spacing="1.5">
+      the operator runs. 46 modules · 20 CLIs · 229 tests · AGPL-3.0.
+    </text>
+  </g>
+
+  <!-- hairline frame -->
+  <rect x="0.5" y="0.5" width="759" height="319" rx="18"
+        fill="none" stroke="#d4af37" stroke-width="1" opacity="0.35"/>
+</svg>
