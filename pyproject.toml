@@ -40,6 +40,10 @@ redteam = ["impacket", "pymetasploit3", "python-nmap", "beautifulsoup4"]
 build = ["pyinstaller"]
 # Nicer CLI rendering (optional; engine degrades to plain colorama without it).
 rich = ["rich>=13"]
+# PDF reports via WeasyPrint; falls back to HTML with a clear notice if absent.
+pdf = ["weasyprint>=60"]
+# ROE PDF parsing (roe_parse.py reads .pdf when this is installed; .md/.txt always work).
+roe-pdf = ["pypdf>=4"]
 # Convenience: everything an operator workstation wants.
 all = ["PySide6>=6.5", "impacket", "pymetasploit3", "python-nmap", "beautifulsoup4", "rich>=13"]
 

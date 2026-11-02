@@ -249,6 +249,7 @@ function _renderGraph(){
   const svg=document.createElementNS(svgNS,'svg');
   svg.setAttribute('width',W);svg.setAttribute('height',H);
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.style.display='block';
+  host.appendChild(svg);
   // defs: arrowhead marker
   const defs=document.createElementNS(svgNS,'defs');
   // Use createElementNS — innerHTML on an SVG element parses as HTML, not SVG, so markers are silently discarded.
