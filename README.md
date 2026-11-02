@@ -1,6 +1,14 @@
 # Mimir
 
-> **The elevated viewpoint that reveals the whole surface.**
+[![CI](https://github.com/ShadowSlayer08/mimir/actions/workflows/ci.yml/badge.svg)](https://github.com/ShadowSlayer08/mimir/actions/workflows/ci.yml)
+[![License: AGPL v3+](https://img.shields.io/badge/License-AGPL%20v3+-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-229%2F229-brightgreen)](tests/)
+[![Eval recall](https://img.shields.io/badge/eval%20recall-100%25%20(7%20scenarios)-brightgreen)](evals/)
+[![Modules](https://img.shields.io/badge/modules-46-blueviolet)](modules/)
+[![Code of Conduct](https://img.shields.io/badge/CoC-Contributor%20Covenant%202.1-ff69b4.svg)](CODE_OF_CONDUCT.md)
+
+> **The keeper of the well of knowledge.**
 > A knowledge-driven pentest / red-team **orchestration** engine — it plans and
 > stages an engagement end-to-end so a human operator can run it.
 

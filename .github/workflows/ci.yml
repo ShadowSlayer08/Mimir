@@ -32,6 +32,11 @@ jobs:
         run: python validate_kb.py
       - name: Eval harness
         run: python -m evals.bench
+      - name: Install + test the example plugin (demonstrates the SDK contract)
+        shell: bash
+        run: |
+          pip install -e plugins/example
+          python -m pytest plugins/example/tests/ -q
       - name: Boundary grep — no payloads / C2 / auto-exploit text
         shell: bash
         run: |

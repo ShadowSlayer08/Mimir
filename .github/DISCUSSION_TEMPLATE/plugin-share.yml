@@ -1,0 +1,49 @@
+title: "[plugin] "
+labels: ["plugin"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share a third-party module you built against the `mimir.sdk`
+        contract. Readers can install, review, and star your plugin.
+
+  - type: input
+    id: name
+    attributes:
+      label: Plugin name
+      description: PyPI / GitHub repo name.
+      placeholder: mimir-plugin-<name>
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: Repository URL
+      placeholder: https://github.com/<you>/<repo>
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: What does it cover?
+      description: Target type, methodology scope, ATT&CK tactics it stages.
+      placeholder: |
+        Target: hashicorp-vault
+        Methodology: auth mode review, policy audit, token enum
+        Tactics: Credential Access (TA0006), Discovery (TA0007)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Boundary confirmation
+      options:
+        - label: My plugin stages methodology only — it does not execute payloads or run exploits.
+          required: true
+        - label: My plugin honors the ROE scope passed in by the host.
+          required: true
+        - label: My plugin ships tests (ideally using `sdk.TestHarness`).
+          required: true
