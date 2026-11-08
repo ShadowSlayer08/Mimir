@@ -272,6 +272,59 @@ def render_new_engagement(user, error="", form=None):
 
 
 # --------------------------------------------------------------------------- #
+def _autopilot_toggle(user):
+    """Render the Autopilot toggle block for the launch form.
+
+    Autopilot is admin+lead only; everyone else gets a hint explaining it
+    exists but requires elevation. Defaults mirror the safest CLI defaults
+    (safe-risk only, noise ceiling 5, max 50 steps, 60s per step).
+    """
+    if user.get("role") not in ("admin", "lead"):
+        return (
+            '<div class="row" style="margin-top:12px">'
+            '<div class="dim">ᛗ Autopilot — autonomous one-pass execution of the '
+            'staged plan (safe-recon by default; gated by ROE + noise + risk + '
+            'command-safety; per-step hard timeout). Available to admin + lead '
+            'roles.</div></div>')
+    return """
+      <details style="margin-top:14px;border:1px solid var(--surface-3);border-radius:6px;padding:10px 12px">
+        <summary style="cursor:pointer"><b>ᛗ Autopilot (opt-in)</b>
+          <span class="dim">— run the staged plan autonomously, gated. Admin + lead only.</span>
+        </summary>
+        <p class="dim" style="margin-top:8px">The engine still stages first.
+          If enabled, <code>autopilot.py</code> runs each staged step through
+          institutional-TLD / ROE / noise / risk / command-safety gates, with
+          a per-step timeout. Safe recon only unless you raise the knobs.</p>
+        <div class="row" style="margin-top:8px">
+          <div><label><input type="checkbox" name="autopilot" value="1"> Enable Autopilot after staging</label></div>
+          <div><label>Accept risk</label>
+            <select name="ap_accept_risk">
+              <option value="safe" selected>safe only (recon)</option>
+              <option value="safe,intrusive">safe + intrusive</option>
+            </select></div>
+          <div><label>Noise ceiling</label>
+            <select name="ap_noise_ceiling">
+              <option value="3">3 — stealth</option>
+              <option value="5" selected>5 — default</option>
+              <option value="7">7 — normal</option>
+              <option value="10">10 — aggressive</option>
+            </select></div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div><label>Max steps</label>
+            <input type="number" name="ap_max_steps" value="50" min="1" max="500"></div>
+          <div><label>Per-step timeout (s)</label>
+            <input type="number" name="ap_timeout" value="60" min="5" max="1800"></div>
+          <div><label><input type="checkbox" name="ap_dry_run" value="1" checked>
+            Dry-run first (fires no commands)</label></div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div><label><input type="checkbox" name="ap_confirmed_authorized" value="1">
+            I confirm this engagement is authorised and the written scope covers autonomous execution.</label></div>
+        </div>
+      </details>"""
+
+
 def render_engagement_detail(user, eng, jobs, audit_rows, csrf):
     scope = eng.get("scope_json") or "{}"
     try:
@@ -353,6 +406,7 @@ def render_engagement_detail(user, eng, jobs, audit_rows, csrf):
         <div><label><input type="checkbox" name="emit_runbook" value="1" checked> Write operator runbook</label></div>
         <div><label><input type="checkbox" name="enrich" value="1" checked> Enrich with KEV + EPSS</label></div>
       </div>
+      {_autopilot_toggle(user)}
       <div style="margin-top:14px;text-align:right">
         <button class="btn" type="submit">▶ Stage engagement</button>
       </div>

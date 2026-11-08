@@ -36,6 +36,7 @@ enrich.py                     live CISA-KEV + FIRST-EPSS feeds (cached, offline-
 exploit_refs.py               CVE -> public exploit REFERENCES (links, never payloads); bundled seed + ExploitDB cache
 cvss4.py                      CVSS 4.0 vector + band per finding (deterministic, offline-safe)
 roe.py                        Rules of Engagement hard-gates — machine-checked filter of the staged queue (mimir-roe)
+autopilot.py                  Autopilot v1 — opt-in one-pass executor of the staged plan; gate-chained (institutional/scope/window/forbidden-tech/noise/risk/cmd-safety), resumable, dry-run, per-step timeout, ledger-audited (mimir-autopilot)
 timeline.py                   engagement timeline from the ledger (Markdown + SVG stripe) (mimir-timeline)
 vault.py                      AES-256-GCM encrypted engagement credential vault (mimir-vault) — never auto-fills into staged commands
 opsec.py                      per-step noise score + profile ceiling (stealth/normal/aggressive) (mimir-opsec)

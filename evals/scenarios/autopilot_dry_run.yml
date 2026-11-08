@@ -1,0 +1,46 @@
+# Eval scenario: autopilot.py dry-run on full_scan.xml
+# Asserts the gate chain fires the right verdicts in dry-run mode: the staged
+# plan shouldn't produce any real executions, every candidate must land on one
+# of the recognised verdicts, and the summary shape must match what the web
+# app + ledger write path expect.
+#
+# This scenario is Autopilot-specific: evals/bench.py skips the assertion block
+# gracefully if the `autopilot` module can't be imported.
+
+fixture: tests/fixtures/full_scan.xml
+difficulty: easy
+notes: >
+  Autopilot v1 contract. Regressions mean a gate changed shape, a verdict
+  renamed, or `_walk_step_commands` stopped emitting the expected keys.
+
+expected:
+  hosts_min: 1
+  findings_min: 1
+
+  findings_must_include: []
+  techniques_must_include: []
+  path_kinds_must_include: []
+  top_action_title_regex: ".*"
+
+autopilot:
+  mode: dry-run
+  accept_risk: [safe]
+  noise_ceiling: 5
+  max_steps: 20
+  allowed_verdicts:
+    - dry_run
+    - skipped_institutional
+    - skipped_scope
+    - skipped_window
+    - skipped_forbidden_technique
+    - skipped_noise
+    - skipped_risk
+    - skipped_user_declined
+    - skipped_resume
+    - skipped_max_steps
+    - skipped_command
+  # Dry-run must never fire a real subprocess.
+  forbidden_verdicts:
+    - executed_ok
+    - executed_nonzero
+    - timeout

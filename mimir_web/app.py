@@ -100,12 +100,45 @@ def _run_scan_job(db_path, job_id, engagement_id, args, log_path, art_dir):
                                       engagement_json=fh.read(),
                                       ledger_db=ledger_path,
                                       status="active")
+        # Chain Autopilot v1 if the launcher opted in and staging succeeded.
+        ap_cfg = args.get("autopilot") if isinstance(args, dict) else None
+        if rc == 0 and ap_cfg and os.path.exists(eng_json):
+            _run_autopilot_chain(log_path, art_dir, eng_json, ledger_path, ap_cfg)
         _db.set_job_state(con, job_id, "done" if rc == 0 else "error",
                           exit_code=rc)
     except Exception as exc:                                      # pragma: no cover
         _db.set_job_state(con, job_id, "error", exit_code=1)
         with open(log_path, "a", encoding="utf-8") as log:
             log.write(f"\n[mimir-web] crashed: {exc}\n")
+
+
+def _run_autopilot_chain(log_path, art_dir, eng_json, ledger_path, ap_cfg):
+    """Spawn autopilot.py as a subprocess after assess.py has staged.
+
+    Runs in-thread (sequential with the scan job). Stdout appends to the same
+    job log; a separate JSONL log and the ledger's autopilot_* tables are
+    written for structured audit.
+    """
+    ap_log = os.path.join(art_dir, "autopilot.jsonl")
+    cmd = [sys.executable, os.path.join(_ROOT, "autopilot.py"), eng_json,
+           "--yes-i-am-authorized",
+           "--accept-risk", str(ap_cfg.get("accept_risk", "safe")),
+           "--noise-ceiling", str(ap_cfg.get("noise_ceiling", 5)),
+           "--max-steps", str(ap_cfg.get("max_steps", 50)),
+           "--timeout", str(ap_cfg.get("timeout", 60)),
+           "--log", ap_log, "--ledger", ledger_path]
+    if ap_cfg.get("dry_run"):
+        cmd.append("--dry-run")
+    try:
+        with open(log_path, "a", encoding="utf-8", errors="ignore") as log:
+            log.write("\n\n--- autopilot ---\n")
+            log.write("$ " + " ".join(cmd) + "\n\n")
+            log.flush()
+            subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT,
+                           cwd=_ROOT, env=os.environ.copy(), check=False)
+    except Exception as exc:                                      # pragma: no cover
+        with open(log_path, "a", encoding="utf-8") as log:
+            log.write(f"\n[autopilot chain] crashed: {exc}\n")
 
 
 # --------------------------------------------------------------------------- #
@@ -488,6 +521,24 @@ class _Handler(BaseHTTPRequestHandler):
                 "enrich": bool(form.get("enrich", [""])[0]),
                 "emit_report": bool(form.get("emit_report", [""])[0]),
                 "emit_runbook": bool(form.get("emit_runbook", [""])[0])}
+        # Autopilot is admin+lead only; silently drop opt-in from lower roles.
+        if (user.get("role") in ("admin", "lead")
+                and form.get("autopilot", ["0"])[0] == "1"
+                and form.get("ap_confirmed_authorized", ["0"])[0] == "1"):
+            try:
+                ap_noise = int(form.get("ap_noise_ceiling", ["5"])[0])
+                ap_max = int(form.get("ap_max_steps", ["50"])[0])
+                ap_to = int(form.get("ap_timeout", ["60"])[0])
+            except ValueError:
+                ap_noise, ap_max, ap_to = 5, 50, 60
+            args["autopilot"] = {
+                "accept_risk": form.get("ap_accept_risk", ["safe"])[0],
+                "noise_ceiling": max(0, min(10, ap_noise)),
+                "max_steps": max(1, min(500, ap_max)),
+                "timeout": max(5, min(1800, ap_to)),
+                "dry_run": form.get("ap_dry_run", ["0"])[0] == "1",
+                "launched_by": user.get("email", ""),
+            }
         job_id = _db.create_job(con, user["id"], eid, "scan", args)
         art_dir = os.path.join(self.server.art_root, f"eng-{eid}", f"job-{job_id}")
         log_path = os.path.join(art_dir, "job.log")

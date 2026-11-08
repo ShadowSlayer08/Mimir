@@ -26,10 +26,14 @@
   <sub>46 modules · 20 CLIs · 7 CI eval scenarios at 100% recall · zero payloads in-tree</sub>
 </p>
 
-> ᛗ **Mimir is a staging-only tool.** It analyses, correlates, ranks, narrates, and
-> hands the operator a runbook. It does not execute payloads, operate C2, or
-> auto-exploit anything. Attack paths are *staged* for a human to run manually,
-> in authorised scope, with their own tooling.
+> ᛗ **Mimir stages by default; autopilot runs only on explicit opt-in.** The
+> engine analyses, correlates, ranks, narrates, and hands the operator a
+> runbook. It does not ship exploit payloads, operate C2, or auto-exploit
+> anything. `mimir-autopilot --yes-i-am-authorized` *runs* the staged
+> methodology one pass — under a 7-stage gate chain (institutional-TLD block
+> · ROE scope · ROE window · forbidden-technique list · noise ceiling ·
+> risk-tag accept list · command-safety grep) and a per-step timeout. Safe
+> recon only unless the operator consciously raises the knobs.
 
 ```console
 ╔══════════════════════════════════════════════════════════════════════════╗
@@ -54,7 +58,7 @@
 
   ᛗ Report        /tmp/report.html  ·  /tmp/runbook.md  ·  /tmp/eng.json
   ᛗ Audit trail   recorded 14 actions to engagement ledger
-  ᛗ Boundary      staging-only. Operator runs each step manually. ✦
+  ᛗ Boundary      stages by default · autopilot is per-run opt-in. ✦
 ```
 
 ---
@@ -107,8 +111,12 @@ mimir-ops                                   # → http://localhost:8788
 
 ## 🧠 What makes it different
 
-- **Methodology, not weaponization.** The staging-only boundary is *architectural*,
-  not a content filter — there is no execution engine inside Mimir to turn off.
+- **Methodology, not weaponization.** Mimir stages. `mimir-autopilot` *runs*
+  the staged methodology only when the operator passes
+  `--yes-i-am-authorized`, and every step still passes institutional-TLD /
+  ROE / noise / risk / command-safety gates before fire. The engine never
+  ships exploit payloads, C2 agents, or implants; autopilot runs the tools
+  the operator installed.
 - **Knowledge in docs.** Methodology, routing and ATT&CK maps live in `docs/*.md`
   as fenced YAML. The Python is a generic loader; a doc edit ships new coverage.
 - **LLM-first with deterministic fallback.** Every qualitative decision (ranking,

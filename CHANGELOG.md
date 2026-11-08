@@ -10,6 +10,23 @@ and the project tracks [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Autopilot v1** (`autopilot.py` / `mimir-autopilot`) — the opt-in one-pass
+  executor for the staged plan. Default behaviour is unchanged: Mimir still
+  stages. Pass `--yes-i-am-authorized` to let it run. Each step passes a
+  seven-stage gate chain before fire: institutional-TLD block → ROE scope →
+  ROE allowed-window → ROE forbidden-techniques → noise ceiling (opsec.py) →
+  risk-tag accept list (default: `safe` only) → command-safety grep
+  (belt-and-braces). Verdict per step is one of `executed_ok`,
+  `executed_nonzero`, `timeout`, `dry_run`, `skipped_institutional`,
+  `skipped_scope`, `skipped_window`, `skipped_forbidden_technique`,
+  `skipped_noise`, `skipped_risk`, `skipped_user_declined`,
+  `skipped_resume`, `skipped_max_steps`, `aborted`. Supports `--dry-run`,
+  `--confirm` (interactive y/N per step), `--resume FILE` (skips steps that
+  executed OK on the prior run), `--log FILE` (JSONL tailable log),
+  `--ledger DB` (persists to `autopilot_runs` + `autopilot_log` tables),
+  `--only-phase` (restrict to one or more phases), per-step `--timeout`,
+  `--max-steps` cap, OPSEC-profile pacing between loud steps, SIGINT-safe
+  abort (the running subprocess finishes, then the run halts).
 - WeasyPrint `pdf` optional extra (`pip install mimir[pdf]`) wiring the PDF
   export path in `reporting.py`; falls back to HTML with a notice when absent.
 - `pypdf` `roe-pdf` optional extra so `roe_parse` reads `.pdf` ROE docs.
