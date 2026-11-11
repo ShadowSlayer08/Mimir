@@ -102,12 +102,38 @@ The parser contract is PURE: no network, no filesystem writes, no raise on
 malformed input. Dispatch is command-prefix routing (`_ROUTES` in
 `parsers/__init__.py`); add a parser by appending a `(("prefix",), fn)` row.
 
-### 6b. Mimir SLM — specialised brain (groundwork)
-A long-game direction. Mimir already routes every qualitative decision
-through `qualia.decide` (planner, narrator, adviser roles). The SLM goal is
-to specialise a small local model (e.g. `qwen2.5:3b`) on Mimir's own
-curated decision traces via QLoRA, serve it through the existing Ollama
-layer (`llm.py`) as `mimir-slm:latest`, and let `qualia.decide` pick it up
-automatically. Cloud models remain excluded. The first step is a
-`qualia_trace.db` sink + `mimir-slm train / eval / promote` harness; the
-first model lands after a corpus of ~500+ curated traces exists.
+### 6b. Mimir SLM — specialised brain (Phase 23 groundwork LANDED)
+Mimir already routes every qualitative decision through `qualia.decide` /
+`qualia.prose`. Phase 23 lands the TRAINING-DATA PIPELINE around those
+calls; the first LoRA ships only after a curated corpus exists.
+
+Shipped in Phase 23:
+* `slm/trace.py` — opt-in append-only SQLite sink. Set
+  `MIMIR_SLM_TRACE_DB=/path/to.db` to start capturing; unset for zero
+  cost. Every row is secondary-scrubbed via `vault.redact` before write.
+  `MIMIR_SLM_TRACE_ENGAGEMENT=<id>` tags rows for later per-engagement
+  filtering.
+* `qualia.decide` and `qualia.prose` emit exactly one trace per call —
+  LLM output when the model won, fallback output otherwise, with a
+  `validator_passed` flag.
+* `mimir_slm.py` (`mimir-slm` CLI): `status` (corpus snapshot +
+  readiness score), `trace` (tail), `export` (curated training JSONL),
+  `curate` (label a row `worked` / `no_signal` / `muted`).
+* `train`, `eval`, `promote` are DOCUMENTED PLACEHOLDERS: they print the
+  recipe + prereqs rather than shipping a trainer in-tree. The engine
+  will not ship a trainer until the first corpus exists (avoids the
+  "elaborate pipeline with no data" trap).
+
+Training recipe (operator-driven, when ready):
+1. Export: `mimir-slm export train.jsonl --only-outcome worked`.
+2. Base:   `qwen2.5:3b-instruct` (planner / adviser) or
+           `phi-3-mini-4k-instruct` (narrator).
+3. Train:  QLoRA (trl.SFTTrainer or unsloth) on a local GPU; rank 16
+           adapter; 1–3 epochs; lr 2e-4; seq-len 2048.
+4. Convert + quantise to GGUF via llama.cpp (Q5_K_M).
+5. Serve via an Ollama Modelfile tagged `mimir-slm:<yyyymmdd>`;
+   `qualia.decide` picks it up automatically through the existing
+   `llm.py` role abstraction.
+
+Cloud models stay excluded (`MIMIR_LLM_ALLOW_CLOUD=1` escape hatch
+unchanged). Fine-tuning is local-only.

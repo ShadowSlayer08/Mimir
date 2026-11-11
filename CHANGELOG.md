@@ -10,6 +10,20 @@ and the project tracks [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Mimir SLM training-data pipeline (Phase 23 groundwork)** — `slm/` package
+  + `mimir_slm.py` CLI (`mimir-slm`). Opt-in via `MIMIR_SLM_TRACE_DB=/path/to.db`
+  (zero cost when unset). Every `qualia.decide` / `qualia.prose` call now emits
+  a secondary-scrubbed trace row (prompt, system, LLM output, fallback output,
+  `used_fallback`, `validator_passed`, model tag, optional engagement id).
+  `vault.redact` scrubs secret-shaped tokens before write.
+  * `mimir-slm status`  — corpus snapshot + readiness score (target 500
+    curator-labelled `worked` traces).
+  * `mimir-slm trace`   — tail recent decisions, filterable by kind.
+  * `mimir-slm curate`  — label a trace (`worked` / `no_signal` / `muted`).
+  * `mimir-slm export`  — emit curated training JSONL for QLoRA.
+  * `mimir-slm train / eval / promote` are documented placeholders (print the
+    recipe + prereqs); the engine does not ship a trainer until a curated
+    corpus exists. Cloud models remain excluded — all SLM work is local.
 - **Autopilot v2 — observe-decide-run loop** (`autopilot_loop.py` /
   `mimir-autopilot-loop`; also `mimir-autopilot --loop N`). Wraps v1 in an
   iteration loop that parses each executed step's stdout via `parsers/`,
