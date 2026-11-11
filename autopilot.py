@@ -550,6 +550,15 @@ def main(argv=None):
                     help="skip steps that executed_ok / dry_run in the prior log")
     ap.add_argument("--yes-i-am-authorized", action="store_true",
                     help="mandatory confirmation that this engagement is authorized")
+    ap.add_argument("--loop", type=int, metavar="N", default=0,
+                    help="Autopilot v2 — run the observe-decide-run loop for N "
+                         "iterations (parses each step's output + merges new "
+                         "intel back into the engagement before the next pass). "
+                         "0 = v1 one-pass (default).")
+    ap.add_argument("--loop-log", metavar="FILE",
+                    help="v2 only: per-iteration JSONL audit log")
+    ap.add_argument("--lessons", metavar="DB",
+                    help="v2 only: apply lessons.py bias when re-ranking")
     args = ap.parse_args(argv)
 
     if not args.yes_i_am_authorized:
@@ -570,6 +579,28 @@ def main(argv=None):
                   f"institutional-TLD block only.", file=sys.stderr)
 
     accept = [t.strip().lower() for t in (args.accept_risk or "safe").split(",") if t.strip()]
+    if args.loop and args.loop > 0:
+        # Dispatch to Autopilot v2 — observe-decide-run loop. Same safety args.
+        import autopilot_loop
+        v1_kwargs = {
+            "roe_rules": rules, "accept_risk": accept,
+            "noise_ceiling": args.noise_ceiling, "max_steps": args.max_steps,
+            "timeout_s": args.timeout, "dry_run": args.dry_run,
+            "log_path": args.log, "ledger_db": args.ledger,
+            "only_phases": args.only_phase,
+        }
+        summary = autopilot_loop.run_loop(
+            engagement, max_iterations=args.loop,
+            autopilot_kwargs=v1_kwargs,
+            engagement_path=args.engagement if not args.dry_run else None,
+            loop_log_path=args.loop_log, lessons_db=args.lessons,
+            colorize=sys.stderr.isatty())
+        print(f"[autopilot] loop done  iterations={summary['iterations']}  "
+              f"merged_hosts={summary['merged_hosts']}  "
+              f"merged_services={summary['merged_services']}  "
+              f"merged_findings={summary['merged_findings']}",
+              file=sys.stderr)
+        return 0
     out = run(engagement,
               roe_rules=rules,
               accept_risk=accept,

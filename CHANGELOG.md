@@ -10,6 +10,22 @@ and the project tracks [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Autopilot v2 — observe-decide-run loop** (`autopilot_loop.py` /
+  `mimir-autopilot-loop`; also `mimir-autopilot --loop N`). Wraps v1 in an
+  iteration loop that parses each executed step's stdout via `parsers/`,
+  merges new hosts / services / findings back into the engagement JSON,
+  re-ranks the queue via `copilot.recommend_from_engagement`, and iterates
+  up to `--max-iterations` (default 3) with early-exit when nothing new
+  is learned. The gate chain is reused unchanged — every iteration still
+  gates on institutional-TLD / ROE / noise / risk / command-safety /
+  per-step timeout. `--loop-log FILE` writes a per-iteration JSONL audit
+  record; `--lessons DB` applies lessons bias in re-ranking.
+- **`parsers/` package** — tool-output parsers feeding Autopilot v2's
+  observe step. Ships `parsers.nmap` (default text + grepable `-oG` +
+  delegation to `nmap_analyzer` for XML), `parsers.nuclei` (JSONL →
+  findings), and `parsers.generic` (regex fallback for IPs, hostnames,
+  URLs, CVE references). Every parser is pure, non-raising, and routed by
+  command prefix via `parsers._ROUTES` — add a parser by appending a row.
 - **Autopilot v1** (`autopilot.py` / `mimir-autopilot`) — the opt-in one-pass
   executor for the staged plan. Default behaviour is unchanged: Mimir still
   stages. Pass `--yes-i-am-authorized` to let it run. Each step passes a

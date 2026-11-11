@@ -75,6 +75,7 @@ mimir-crucible = "crucible_bridge:main"
 mimir-recon = "recon_chain:main"
 mimir-adversary = "adversary:main"
 mimir-autopilot = "autopilot:main"
+mimir-autopilot-loop = "autopilot_loop:main"
 
 # Flat layout: enumerate every shipped top-level module explicitly, plus the
 # modules/ code package and the docs/ knowledge base as importable DATA

@@ -77,3 +77,37 @@ contains — nmap probes, HTTP enumeration, auth-protocol checks, authorised
 credential tests — not exploitation primitives. The engine does not plan
 offensive tradecraft inside autopilot that the staging pass itself wouldn't
 have produced.
+
+### 6a. Autopilot v2 — observe-decide-run loop
+Autopilot v2 (`autopilot_loop.py` / `mimir-autopilot-loop`, also reachable via
+`mimir-autopilot --loop N`) wraps v1 in an outer loop that:
+
+* **Observes.** After each v1 pass it reads the stdout/stderr tail of every
+  executed step and dispatches it to a parser (`parsers/nmap.py`,
+  `parsers/nuclei.py`, `parsers/generic.py` fallback). Each parser returns a
+  `ParseResult` with new hosts, services, findings and (never passwords)
+  credential pointers.
+* **Decides.** Merges every ParseResult into the engagement JSON — dedup'd
+  by (host, port) for services and (host, title, cve) for findings — then
+  re-ranks the queue via `copilot.recommend_from_engagement`.
+* **Runs again.** Up to `--max-iterations` passes (default 3). The loop
+  exits early when an iteration both produces no new intel AND executes no
+  steps.
+
+The gate chain is reused unchanged — every iteration still gates on
+institutional TLD, ROE, allowed-window, forbidden-techniques, noise
+ceiling, risk accept list and command-safety. v2 never relaxes v1 safety.
+
+The parser contract is PURE: no network, no filesystem writes, no raise on
+malformed input. Dispatch is command-prefix routing (`_ROUTES` in
+`parsers/__init__.py`); add a parser by appending a `(("prefix",), fn)` row.
+
+### 6b. Mimir SLM — specialised brain (groundwork)
+A long-game direction. Mimir already routes every qualitative decision
+through `qualia.decide` (planner, narrator, adviser roles). The SLM goal is
+to specialise a small local model (e.g. `qwen2.5:3b`) on Mimir's own
+curated decision traces via QLoRA, serve it through the existing Ollama
+layer (`llm.py`) as `mimir-slm:latest`, and let `qualia.decide` pick it up
+automatically. Cloud models remain excluded. The first step is a
+`qualia_trace.db` sink + `mimir-slm train / eval / promote` harness; the
+first model lands after a corpus of ~500+ curated traces exists.

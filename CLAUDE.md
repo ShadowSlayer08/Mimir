@@ -37,6 +37,8 @@ exploit_refs.py               CVE -> public exploit REFERENCES (links, never pay
 cvss4.py                      CVSS 4.0 vector + band per finding (deterministic, offline-safe)
 roe.py                        Rules of Engagement hard-gates — machine-checked filter of the staged queue (mimir-roe)
 autopilot.py                  Autopilot v1 — opt-in one-pass executor of the staged plan; gate-chained (institutional/scope/window/forbidden-tech/noise/risk/cmd-safety), resumable, dry-run, per-step timeout, ledger-audited (mimir-autopilot)
+autopilot_loop.py             Autopilot v2 — observe-decide-run loop around v1; parses each step's output via parsers/, merges new intel back into the engagement JSON, re-ranks via copilot, iterates with early-exit (mimir-autopilot-loop)
+parsers/                      tool-output parsers (nmap text + grepable + XML, nuclei JSONL, regex fallback) feeding Autopilot v2's observe step; add a parser by appending to parsers/_ROUTES
 timeline.py                   engagement timeline from the ledger (Markdown + SVG stripe) (mimir-timeline)
 vault.py                      AES-256-GCM encrypted engagement credential vault (mimir-vault) — never auto-fills into staged commands
 opsec.py                      per-step noise score + profile ceiling (stealth/normal/aggressive) (mimir-opsec)

@@ -1,0 +1,41 @@
+# Eval scenario: autopilot v2 observe-decide-run loop, dry-run mode.
+# Asserts the loop reaches the early-exit path (no executions in dry-run ->
+# convergence after the first iteration) and that the summary shape matches
+# what the web app + ledger write path expect.
+#
+# Autopilot-specific; evals/bench.py skips gracefully if autopilot_loop
+# can't be imported.
+
+fixture: tests/fixtures/full_scan.xml
+difficulty: easy
+notes: >
+  Autopilot v2 dry-run contract. Regressions mean the loop API changed, the
+  per-iteration record shape drifted, or an iteration started executing in
+  dry-run mode.
+
+expected:
+  hosts_min: 1
+  findings_min: 1
+  findings_must_include: []
+  techniques_must_include: []
+  path_kinds_must_include: []
+  top_action_title_regex: ".*"
+
+autopilot_loop:
+  mode: dry-run
+  max_iterations: 3
+  # Every iteration must land its summary in the per_iter record, with no real
+  # executions.
+  expected_iterations_max: 3
+  forbid_executions: true
+  per_iter_keys_must_include:
+    - iteration
+    - ts_start
+    - ts_end
+    - executed_steps
+    - verdicts
+    - parsed_steps
+    - new_hosts
+    - new_services
+    - new_findings
+    - reranked_actions
