@@ -137,3 +137,65 @@ Training recipe (operator-driven, when ready):
 
 Cloud models stay excluded (`MIMIR_LLM_ALLOW_CLOUD=1` escape hatch
 unchanged). Fine-tuning is local-only.
+
+### 6c. Reinforcement learning + mutual teacher training (Phase 24)
+Phase 24 adds a reward signal, a GRPO-ready data pipeline, and a mutual-
+teacher bridge with Crucible — the paired AI-red-team engine — so both
+SLMs can train against each other's judgment.
+
+Shipped in Phase 24:
+
+* **`slm/reward.py`** — scalar reward in `[-1, 1]` per trace. Weighted
+  sum of: curator outcome (worked / no_signal / muted), lessons ledger
+  outcome (`lessons.py` → technique worked / burned in this context),
+  autopilot verdict for the derived step (executed_ok / nonzero /
+  timeout / skipped), shape-validator pass, and an optional peer-SLM
+  agreement signal. Weights are operator-tunable via
+  `MIMIR_SLM_REWARD_WEIGHTS=k1=.., k2=..` or the CLI `--weight k=v`
+  flag. Writes `reward` + `reward_breakdown` columns.
+* **`slm/distill.py`** — teacher-student dataset builder. For each
+  curated trace, re-asks the strongest *local* model (chosen via
+  `llm.info().picks`) for a reference answer, then emits
+  `{prompt, student, teacher, reward, role, kind, outcome, source}`
+  rows for SFT warm-up. Cloud models stay excluded.
+* **`slm/rl.py`** — GRPO (group-relative policy optimisation) support.
+  Samples N candidate responses per curated prompt from the teacher,
+  scores each via `slm.reward.compute_reward`, and z-scores rewards
+  inside each group to produce `advantage` values the GRPO trainer
+  consumes. Emits one JSONL row per prompt. `recipe()` prints the full
+  trainer script (base model, QLoRA knobs, llama.cpp conversion,
+  Ollama Modelfile).
+* **`slm/bridge.py`** — Mimir ↔ Crucible mutual-teacher bridge.
+  * `export_dump` emits a JSONL dump Crucible can ingest.
+  * `import_dump` ingests Crucible's dumps as `kind=peer:*` rows with
+    `outcome=NULL` — operator curates them explicitly; the peer never
+    labels our data.
+  * `query_peer(prompt, response)` asks Crucible's SLM whether the
+    response is reasonable, returns `{+1, 0, -1, None}` — folded into
+    `slm.reward.compute_reward(..., peer_signal=...)` for training.
+  * Transport reuses `crucible_bridge._request` (HMAC-SHA256 over the
+    operator's `CRUCIBLE_API_KEY`). Offline-safe: no URL / no key
+    means `None` signal, never a crash.
+
+Operator flow — from captured traces to a mutually-trained SLM:
+
+1. Capture: `export MIMIR_SLM_TRACE_DB=~/mimir-slm.db` then run
+   engagements normally.
+2. Curate: `mimir-slm curate <id> worked` on decisions that produced
+   real findings.
+3. Score: `mimir-slm reward --lessons eng.db --ledger eng.db --with-peer`
+   (the `--with-peer` flag queries Crucible for cross-SLM agreement).
+4. Exchange: `mimir-slm peer-sync export dump.jsonl` (send to Crucible)
+   and `mimir-slm peer-sync import crucible-dump.jsonl` (ingest its
+   curated corpus).
+5. Build GRPO dataset: `mimir-slm rl export train.grpo.jsonl
+   --samples-per-prompt 4 --lessons eng.db --ledger eng.db --with-peer`.
+6. Train (outside the engine): run the GRPO script from
+   `mimir-slm rl recipe` on a local GPU.
+7. Promote: tag the resulting GGUF `mimir-slm:<yyyymmdd>` in Ollama;
+   set `MIMIR_LLM_PLANNER` / `_ADVISER` / `_NARRATOR` env vars.
+   `qualia.decide` picks up the SLM transparently.
+
+The engine still ships NO trainer in-tree; the actual GRPO script runs
+on the operator's GPU host. The engine is the data factory + reward
+designer + mutual-teacher transport.

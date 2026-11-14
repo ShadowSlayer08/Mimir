@@ -10,6 +10,25 @@ and the project tracks [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Mimir SLM reinforcement learning + mutual teacher training (Phase 24)** —
+  the SLM pipeline from Phase 23 gains a reward signal, a GRPO-ready data
+  builder, and a bidirectional teacher bridge with Crucible.
+  * `slm/reward.py` — scalar reward in `[-1, 1]` per trace from lessons.py
+    outcomes + autopilot verdicts + curator label + shape-validator pass
+    + optional peer-SLM agreement. Operator-tunable weights via
+    `MIMIR_SLM_REWARD_WEIGHTS=` or CLI `--weight k=v`.
+  * `slm/distill.py` — teacher-student SFT dataset builder (big local
+    model teaches qwen2.5:3b / phi-3-mini student).
+  * `slm/rl.py` — GRPO group-sampling + z-score advantage normalisation +
+    full trainer recipe (`mimir-slm rl recipe`).
+  * `slm/bridge.py` — mutual-teacher bridge with Crucible's SLM over
+    the existing HMAC-signed `crucible_bridge`. `export_dump`/`import_dump`
+    exchange curated corpora; `query_peer` returns cross-SLM agreement
+    `{+1, 0, -1, None}` folded into the reward. Imported rows land as
+    `kind=peer:*` with `outcome=NULL` — the peer never curates our data.
+  * CLI gains: `mimir-slm reward`, `mimir-slm distill`, `mimir-slm rl export`,
+    `mimir-slm rl recipe`, `mimir-slm peer-sync status`/`export`/`import`.
+  * Cloud models remain excluded; all RL stays local to the operator's GPU.
 - **Mimir SLM training-data pipeline (Phase 23 groundwork)** — `slm/` package
   + `mimir_slm.py` CLI (`mimir-slm`). Opt-in via `MIMIR_SLM_TRACE_DB=/path/to.db`
   (zero cost when unset). Every `qualia.decide` / `qualia.prose` call now emits
