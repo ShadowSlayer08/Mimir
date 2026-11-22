@@ -199,3 +199,30 @@ Operator flow — from captured traces to a mutually-trained SLM:
 The engine still ships NO trainer in-tree; the actual GRPO script runs
 on the operator's GPU host. The engine is the data factory + reward
 designer + mutual-teacher transport.
+
+### 6d. Phase 25 — closing the gaps from Phase 24
+Four weak spots were called out at end of Phase 24 and shipped as Phase 25:
+
+* **Autopilot v2 grows mid-loop.** `autopilot_loop._restage_from_discoveries`
+  re-runs `modules.dispatch` against each iteration's newly-discovered
+  services; new checks land on a synthetic `AUTOPILOT-V2-SYNTH` attack
+  path. The loop is now a true growing agent, not a re-ranker.
+* **SLM readiness is non-zero from day 1.** `mimir-slm seed` walks
+  `docs/` + fixtures + evals and emits canonical `kind=seed:*`,
+  `outcome=worked` rows. `mimir-slm export` includes them in the SFT
+  corpus; `mimir-slm train --dry-run` can build DPO pairs without a
+  single real engagement.
+* **Crucible peer round-trip works end-to-end.** `tools/crucible_peer_mock.py`
+  stands up the `/slm/peer-opinion` endpoint over the same HMAC bridge
+  so `slm.bridge.query_peer` exercises the full path before the real
+  Crucible endpoint deploys. Deterministic verdict heuristic; fully
+  tested.
+* **An actual DPO trainer ships.** `slm/train_dpo.py` + `mimir-slm train`
+  (not just a recipe). Heavy deps are gated: the module imports fine
+  without `torch`; `--dry-run` validates the pair dataset without a GPU;
+  real training only requires `pip install torch transformers trl
+  datasets peft accelerate bitsandbytes`.
+
+The GRPO recipe in `slm.rl.recipe()` stays as the on-policy option. DPO
+is the faster first step — offline, pair-based, uses the reward scores
+we already compute.

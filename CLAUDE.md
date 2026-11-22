@@ -40,12 +40,15 @@ autopilot.py                  Autopilot v1 — opt-in one-pass executor of the s
 autopilot_loop.py             Autopilot v2 — observe-decide-run loop around v1; parses each step's output via parsers/, merges new intel back into the engagement JSON, re-ranks via copilot, iterates with early-exit (mimir-autopilot-loop)
 parsers/                      tool-output parsers (nmap text + grepable + XML, nuclei JSONL, regex fallback) feeding Autopilot v2's observe step; add a parser by appending to parsers/_ROUTES
 slm/                          Mimir SLM training stack:
-                                trace.py   — opt-in SQLite sink (MIMIR_SLM_TRACE_DB=) for every qualia.decide/qualia.prose call; vault.redact-scrubbed
-                                reward.py  — scalar reward [-1..1] per trace from lessons + autopilot verdicts + curator + optional peer
-                                distill.py — teacher-student dataset builder (big local model teaches the small SLM)
-                                rl.py      — GRPO group-sampling + z-score advantage normalisation + documented trainer recipe
-                                bridge.py  — mutual-teacher bridge with Crucible SLM (export/import corpora + query_peer over HMAC)
-mimir_slm.py                  operator CLI (mimir-slm): status / trace / curate / export / reward / distill / rl / peer-sync; train/eval/promote are documented recipes
+                                trace.py      — opt-in SQLite sink (MIMIR_SLM_TRACE_DB=) for every qualia.decide/qualia.prose call; vault.redact-scrubbed
+                                reward.py     — scalar reward [-1..1] per trace from lessons + autopilot verdicts + curator + optional peer
+                                distill.py    — teacher-student dataset builder (big local model teaches the small SLM)
+                                rl.py         — GRPO group-sampling + z-score advantage normalisation + online trainer recipe
+                                bridge.py     — mutual-teacher bridge with Crucible SLM (export/import corpora + query_peer over HMAC)
+                                seed.py       — bootstrap corpus from docs/ + fixtures + evals so readiness is non-zero from day 1
+                                train_dpo.py  — ACTUAL DPO trainer (offline-friendly, QLoRA-shaped, --dry-run validates without a GPU)
+mimir_slm.py                  operator CLI (mimir-slm): status / trace / curate / export / reward / distill / rl / peer-sync / seed / train (DPO)
+tools/crucible_peer_mock.py   dev-only mock of Crucible's /slm/peer-opinion endpoint — lets slm.bridge.query_peer round-trip before the real endpoint deploys
 timeline.py                   engagement timeline from the ledger (Markdown + SVG stripe) (mimir-timeline)
 vault.py                      AES-256-GCM encrypted engagement credential vault (mimir-vault) — never auto-fills into staged commands
 opsec.py                      per-step noise score + profile ceiling (stealth/normal/aggressive) (mimir-opsec)

@@ -142,14 +142,151 @@ def _rerank(engagement, lessons_db=None):
 
 
 # --------------------------------------------------------------------------- #
+# Re-dispatch — run the modules dispatcher against newly-discovered services
+# so the plan GROWS mid-loop. Phase 25 fix for "v2 just re-ranks."
+# --------------------------------------------------------------------------- #
+def _synth_report_for_new_services(engagement, new_services):
+    """Build a minimal Mimir report shape around just the new (host, port,
+    service) tuples so modules.dispatch can emit methodology for them without
+    re-scanning anything.
+
+    modules.* reads `port["service"]` as a DICT ({name, version, ...}),
+    which is why nmap_analyzer emits it that way. Match that shape here.
+    """
+    by_host = {}
+    for s in new_services or []:
+        addr = s.get("host") or ""
+        if not addr:
+            continue
+        h = by_host.setdefault(addr, {"address": addr, "ip": addr,
+                                      "hostname": addr, "ports": [],
+                                      "os": "", "status": "up"})
+        h["ports"].append({
+            "port": s.get("port"),
+            "protocol": s.get("proto", "tcp"),
+            # modules expect a dict here — nmap_analyzer emits it this way.
+            "service": {
+                "name": s.get("service", ""),
+                "version": s.get("version", ""),
+                "product": "",
+            },
+            "state": "open",
+        })
+    return {
+        "hosts": list(by_host.values()),
+        "findings": [],
+        "meta": {"source": "autopilot-v2 redispatch"},
+    }
+
+
+def _restage_from_discoveries(engagement, new_services, mode="vapt",
+                              noise_ceiling=5, accept_risk=("safe",)):
+    """Re-run the knowledge-driven modules dispatcher against new services
+    and append the resulting check steps as a synthetic attack path in the
+    engagement. Returns (new_steps, modules_called).
+
+    This is what turns v2 from "re-ranker" into "growing agent": a
+    discovered port triggers its methodology, which lands new executable
+    steps for the next iteration to pick up.
+
+    Safeguards:
+      * dedup by (host, port, module, check-name) against the existing
+        synthetic path
+      * respects the loop's noise_ceiling + accept_risk at append time
+        (so loud / intrusive steps only appear when the operator opted in)
+    """
+    try:
+        import modules as _modules
+    except Exception:                                              # pragma: no cover
+        return 0, 0
+    if not new_services:
+        return 0, 0
+
+    report = _synth_report_for_new_services(engagement, new_services)
+    try:
+        results = _modules.dispatch(report, mode=mode)
+    except Exception:                                              # pragma: no cover
+        return 0, 0
+
+    # Find or create the synthetic attack path.
+    synth = None
+    for p in (engagement.get("attack_paths") or []):
+        if p.get("id") == "AUTOPILOT-V2-SYNTH":
+            synth = p; break
+    if synth is None:
+        synth = {"id": "AUTOPILOT-V2-SYNTH",
+                 "kind": "autopilot-synth",
+                 "hosts": [], "steps": [],
+                 "noise_max": 0, "noise_warn": False,
+                 "source": "autopilot-v2"}
+        engagement.setdefault("attack_paths", []).append(synth)
+
+    existing_keys = {(s.get("host"), s.get("port"), s.get("module"),
+                      s.get("name")) for s in synth["steps"]}
+    accept = set(accept_risk or ("safe",))
+    added_steps = 0
+    modules_called = 0
+    next_order = len(synth["steps"]) + 1
+
+    for r in (results or []):
+        modules_called += 1
+        module = r.get("module", "")
+        target = r.get("target", "")
+        host = target
+        if host.startswith(("http://", "https://")):
+            host = host.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
+        port = None
+        for svc in new_services:
+            if (svc.get("host") or "").lower() == host.lower():
+                port = svc.get("port"); break
+        for c in (r.get("checks") or []):
+            key = (host, port, module, c.get("name"))
+            if key in existing_keys:
+                continue
+            risk = (c.get("risk") or "safe").lower()
+            if risk not in accept:
+                continue
+            cmd = (c.get("command") or "").strip()
+            if not cmd or cmd.startswith("#"):
+                continue
+            step = {
+                "order": next_order,
+                "technique_id": c.get("attack", "") or r.get("attack", ""),
+                "technique": c.get("name", ""),
+                "tactic": "Discovery" if risk == "safe" else "Active",
+                "host": host,
+                "port": port,
+                "module": module,
+                "name": c.get("name", ""),
+                "command": cmd,
+                "risk": risk,
+                "noise": int(c.get("noise", 0) or 0),
+                "source": f"autopilot-v2-redispatch:{module}",
+            }
+            if step["noise"] > noise_ceiling:
+                continue
+            synth["steps"].append(step)
+            existing_keys.add(key)
+            added_steps += 1
+            next_order += 1
+
+    if added_steps:
+        synth["noise_max"] = max((s.get("noise", 0) for s in synth["steps"]),
+                                 default=0)
+    return added_steps, modules_called
+
+
+# --------------------------------------------------------------------------- #
 # Observation — per-step parse + merge.
 # --------------------------------------------------------------------------- #
 def _observe_results(engagement, results):
     """Walk the autopilot run results, parse each executed step's stdout/stderr
     via parsers.dispatch, merge every ParseResult back into the engagement.
-    Returns a dict with the aggregate counts for the iteration record."""
+    Returns the aggregate counts PLUS the raw new_services list so the caller
+    can re-dispatch modules against just-discovered ports."""
     agg = {"parsed_steps": 0, "new_hosts": [], "new_services": 0,
-           "new_findings": 0, "new_credentials": 0}
+           "new_findings": 0, "new_credentials": 0,
+           "_raw_new_services": []}
     for r in results or []:
         if r.get("verdict") not in ("executed_ok", "executed_nonzero"):
             continue
@@ -160,6 +297,14 @@ def _observe_results(engagement, results):
                               r.get("exit_code", 0))
         if pr.is_empty():
             continue
+        # Track which services are NEW to the engagement (merge returns the
+        # added count, but we also want to re-dispatch them, so stash the
+        # new rows before merging).
+        existing = _service_keys(engagement)
+        truly_new = [s for s in (pr.new_services or [])
+                     if (s.get("host"), s.get("port"),
+                         (s.get("proto") or "tcp").lower()) not in existing]
+        agg["_raw_new_services"].extend(truly_new)
         agg["new_services"] += _merge_services(engagement, pr.new_services)[1]
         agg["new_hosts"] += [h for h in pr.new_hosts
                              if h not in agg["new_hosts"]]
@@ -167,6 +312,17 @@ def _observe_results(engagement, results):
         agg["new_findings"] += _merge_findings(engagement, pr.new_findings)
         agg["new_credentials"] += len(pr.new_credentials)
     return agg
+
+
+def _service_keys(engagement):
+    """Return the set of (host, port, proto) tuples already in the engagement."""
+    keys = set()
+    for h in (engagement.get("hosts") or []):
+        addr = h.get("address") or h.get("ip") or ""
+        for p in (h.get("ports") or []):
+            keys.add((addr, p.get("port"),
+                      (p.get("protocol") or p.get("proto") or "tcp").lower()))
+    return keys
 
 
 # --------------------------------------------------------------------------- #
@@ -226,6 +382,16 @@ def run_loop(engagement, *, max_iterations=DEFAULT_MAX_ITERATIONS,
         agg["merged_services"] += parsed["new_services"]
         agg["merged_findings"] += parsed["new_findings"]
 
+        # Phase 25 fix: re-dispatch modules against the new services so the
+        # plan GROWS mid-loop instead of only being re-ranked. Respects the
+        # same noise_ceiling + accept_risk the loop was launched with.
+        redispatch_mode = autopilot_kwargs.get("mode") or "vapt"
+        new_steps, modules_called = _restage_from_discoveries(
+            engagement, parsed["_raw_new_services"],
+            mode=redispatch_mode,
+            noise_ceiling=autopilot_kwargs.get("noise_ceiling", 5),
+            accept_risk=autopilot_kwargs.get("accept_risk") or ("safe",))
+
         reranked = _rerank(engagement, lessons_db=lessons_db)
 
         iter_rec = {
@@ -237,6 +403,8 @@ def run_loop(engagement, *, max_iterations=DEFAULT_MAX_ITERATIONS,
             "new_services": parsed["new_services"],
             "new_findings": parsed["new_findings"],
             "new_credentials": parsed["new_credentials"],
+            "redispatched_steps": new_steps,
+            "redispatched_modules": modules_called,
             "reranked_actions": reranked,
             "aborted": bool(v1["summary"].get("aborted")),
         }
@@ -251,9 +419,12 @@ def run_loop(engagement, *, max_iterations=DEFAULT_MAX_ITERATIONS,
                 print(f"[autopilot-v2] engagement write failed: {exc}",
                       file=sys.stderr)
 
-        # Early exit — nothing learned AND no executions this round.
+        # Early exit — nothing learned AND no executions this round AND no
+        # new steps were restaged. (Growth from re-dispatch keeps the loop
+        # alive even when parsing yielded no new findings directly.)
         if (parsed["parsed_steps"] == 0 and parsed["new_services"] == 0
-                and parsed["new_findings"] == 0 and not parsed["new_hosts"]):
+                and parsed["new_findings"] == 0 and not parsed["new_hosts"]
+                and new_steps == 0):
             dry_streak += 1
             if dry_streak >= 2 or v1["summary"].get("started", 0) == 0:
                 print(f"[autopilot-v2] converged after {i} iteration(s) "

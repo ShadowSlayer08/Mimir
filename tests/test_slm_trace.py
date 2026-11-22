@@ -302,5 +302,9 @@ def test_cli_curate_updates_outcome():
 
 
 def test_cli_placeholders_do_not_fail():
-    for sub in ("train", "eval", "promote"):
+    # `train` stopped being a placeholder in Phase 25 — it now dispatches to
+    # the real DPO trainer (slm.train_dpo) and requires --db; tested in
+    # tests/test_phase25_fixes.py. Only `eval` and `promote` remain as
+    # documented placeholders in Phase 23-24 scope.
+    for sub in ("eval", "promote"):
         assert mimir_slm.main([sub]) == 0

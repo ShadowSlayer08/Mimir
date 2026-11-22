@@ -10,6 +10,38 @@ and the project tracks [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Phase 25 — four fixes to the gaps surfaced at end of Phase 24:**
+  * **Autopilot v2 re-dispatch** (`autopilot_loop._restage_from_discoveries`).
+    After each iteration's parse + merge, the loop now runs the knowledge-
+    driven modules dispatcher against the newly-discovered services. Resulting
+    checks land as a synthetic `AUTOPILOT-V2-SYNTH` attack path; next
+    iteration picks them up. The plan now *grows* mid-loop, not just
+    re-ranks. Dedup is (host, port, module, check-name); respects the loop's
+    `noise_ceiling` + `accept_risk` at append time.
+  * **SLM seed corpus** (`slm/seed.py` + `mimir-slm seed`). Bootstraps the
+    trace DB with canonical prompt/response rows walked from `docs/*.md`
+    methodology, `knowledge_loader` service maps, `tests/fixtures/*.xml`
+    nmap outputs, and `evals/scenarios/*.yml`. Every seeded row lands as
+    `kind=seed:*`, `model='seed'`, `outcome='worked'` (canon). Idempotent
+    re-seed. Readiness is now non-zero from day 1 without waiting for a real
+    engagement.
+  * **Crucible peer mock** (`tools/crucible_peer_mock.py`). Dev-only stdlib
+    HTTP server that implements the HMAC-signed `/slm/peer-opinion` endpoint
+    `slm.bridge.query_peer` posts to. Also handles `GET /health` for
+    `crucible_bridge.available()`. Deterministic verdict heuristic (ATT&CK
+    id -> agree, empty response -> disagree, otherwise unsure) so tests can
+    assert against it. Lets Mimir exercise the full peer round-trip before
+    the real Crucible endpoint deploys.
+  * **Real DPO trainer** (`slm/train_dpo.py` + `mimir-slm train`). Replaces
+    the recipe-only approach with an actual trainer. `build_pairs()` turns
+    reward-scored traces into chosen/rejected pairs filtered by a
+    configurable reward delta (default 0.2). Heavy deps (`torch`,
+    `transformers`, `trl`, `datasets`, `peft`) imported lazily inside
+    `train()`; `--dry-run` validates the pair dataset without touching a
+    GPU. QLoRA-shaped. The GRPO recipe stays in `slm.rl.recipe()` for the
+    on-policy option.
+  * 15 new tests in `tests/test_phase25_fixes.py` (319/319 total). KB clean,
+    9/9 eval scenarios still at 100% recall.
 - **Mimir SLM reinforcement learning + mutual teacher training (Phase 24)** —
   the SLM pipeline from Phase 23 gains a reward signal, a GRPO-ready data
   builder, and a bidirectional teacher bridge with Crucible.

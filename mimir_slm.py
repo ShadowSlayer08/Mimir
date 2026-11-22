@@ -42,6 +42,8 @@ from slm import reward as _reward     # noqa: E402
 from slm import distill as _distill   # noqa: E402
 from slm import rl as _rl             # noqa: E402
 from slm import bridge as _bridge     # noqa: E402
+from slm import seed as _seed         # noqa: E402
+from slm import train_dpo as _dpo     # noqa: E402
 
 
 def _force_utf8_stdio():
@@ -269,22 +271,33 @@ def cmd_peer_sync(args):
     return 0
 
 
-def cmd_train(args):
-    """Documented recipe — the trainer runs outside the engine."""
-    print("mimir-slm train — recipe follows (no trainer ships in-tree)",
+def cmd_seed(args):
+    """Phase 25 fix for the 'zero readiness' problem — populate the trace
+    DB with canonical rows pulled from docs/ + fixtures + evals."""
+    path = args.db or _trace._db_path()
+    if not path:
+        print("[mimir-slm] no DB configured", file=sys.stderr); return 1
+    n = _seed.seed_db(path, max_rows=args.max_rows,
+                      mark_worked=not args.no_mark_worked)
+    s = _seed.stats_for_seeds(path)
+    print(f"[mimir-slm] seeded {n} canon row(s)  "
+          f"total seed rows={s['total']}  "
+          f"sources={len(s.get('by_source') or {})}",
           file=sys.stderr)
-    print()
-    print("For supervised fine-tuning (SFT warm-up):")
-    print("  1. mimir-slm reward  --lessons eng.db --ledger eng.db  --with-peer")
-    print("  2. mimir-slm distill train.sft.jsonl  --only-outcome worked")
-    print("  3. QLoRA via trl.SFTTrainer on qwen2.5:3b or phi-3-mini.")
-    print("     rank=16, lr=2e-4, 1-3 epochs, seq-len 2048.")
-    print("  4. Convert + quantise to GGUF via llama.cpp (Q5_K_M).")
-    print("  5. Ollama Modelfile tagged mimir-slm:<yyyymmdd>; qualia.decide")
-    print("     picks it up through llm.py's role abstraction.")
-    print()
-    print("For reinforcement learning (GRPO), see `mimir-slm rl recipe`.")
     return 0
+
+
+def cmd_train(args):
+    """DPO trainer entry — Phase 25 ships an actual trainer (slm.train_dpo),
+    with graceful fallback when torch/transformers/trl aren't installed."""
+    return _dpo.main([
+        "--db", args.db or _trace._db_path() or "",
+        "--out", args.out,
+        "--base", args.base,
+        "--epochs", str(args.epochs),
+        "--only-outcome", args.only_outcome,
+        "--min-pair-delta", str(args.min_pair_delta),
+    ] + (["--dry-run"] if args.dry_run else []))
 
 
 def cmd_eval(args):
@@ -395,7 +408,27 @@ def main(argv=None):
     psi.add_argument("src", help="input JSONL path, or '-' for stdin")
     p.set_defaults(fn=cmd_peer_sync)
 
-    for n, fn in (("train", cmd_train), ("eval", cmd_eval), ("promote", cmd_promote)):
+    # Phase 25 — seed + real DPO trainer
+    p = sub.add_parser("seed", help="bootstrap the corpus from docs/ + fixtures")
+    p.add_argument("--db")
+    p.add_argument("--max-rows", type=int)
+    p.add_argument("--no-mark-worked", action="store_true",
+                   help="leave outcome=NULL instead of 'worked' (operator curates)")
+    p.set_defaults(fn=cmd_seed)
+
+    p = sub.add_parser("train", help="DPO fine-tune (ships an actual trainer)")
+    p.add_argument("--db")
+    p.add_argument("--out", default="mimir-slm-dpo-lora")
+    p.add_argument("--base", default="Qwen/Qwen2.5-3B-Instruct")
+    p.add_argument("--epochs", type=int, default=1)
+    p.add_argument("--only-outcome", default="worked",
+                   choices=["worked", "no_signal", "muted"])
+    p.add_argument("--min-pair-delta", type=float, default=0.2)
+    p.add_argument("--dry-run", action="store_true",
+                   help="validate the pair dataset without touching a GPU")
+    p.set_defaults(fn=cmd_train)
+
+    for n, fn in (("eval", cmd_eval), ("promote", cmd_promote)):
         p = sub.add_parser(n, help=f"{n} the SLM (documented recipe)")
         p.set_defaults(fn=fn)
 

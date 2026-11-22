@@ -13,6 +13,12 @@ __pycache__/
 *.db
 engagement.*
 eng.json
+
+# SLM trainer output (Phase 23-25) — adapter checkpoints, pair datasets
+mimir-slm-*-lora/
+*.grpo.jsonl
+*.sft.jsonl
+*.dpo.jsonl
 redengine.toml
 redengine.json
 
