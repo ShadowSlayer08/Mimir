@@ -226,3 +226,43 @@ Four weak spots were called out at end of Phase 24 and shipped as Phase 25:
 The GRPO recipe in `slm.rl.recipe()` stays as the on-policy option. DPO
 is the faster first step — offline, pair-based, uses the reward scores
 we already compute.
+
+### 6e. Phase 26 — AppSec in Autopilot v2
+Autopilot v2 was designed around infra step shapes (host, port, service).
+Phase 26 extends the observe-decide-run loop to AppSec:
+
+* `parsers/httpx.py`, `parsers/subfinder.py`, `parsers/feroxbuster.py`
+  (routed from `feroxbuster` / `gobuster` / `dirsearch` / `ffuf`), plus
+  `parsers/subfinder.py` (routed from `subfinder` / `assetfinder` /
+  `amass`) all produce `new_urls` + `new_subdomains` on the ParseResult.
+* `autopilot_loop._observe_results` now tracks the AppSec surface
+  alongside hosts/services/findings.
+* `autopilot_loop._restage_from_discoveries` builds synthetic
+  `{"kind":"web", "host":..., "ref":<url>}` app_targets from the new
+  URLs and subdomains, then calls `modules.dispatch_apps` — the same
+  entry point `assess.py` uses for `--web`/`--api`. Discovered subdomains
+  spawn both `http://` and `https://` probes.
+* All v2 gate chain safeguards (institutional TLD, ROE, noise ceiling,
+  risk accept list, command safety) apply uniformly to infra + AppSec.
+
+### 6f. Phase 27 — `mimir-slm promote`
+The pin manager is the "ship it" moment for Phases 23–26: the first time
+a trained Mimir SLM actually drives qualia decisions in live engagements.
+
+* `slm/promote.py` reads/writes `~/.mimir/llm-pins.json` (override with
+  `MIMIR_LLM_PINS=`).
+* `llm.pick(role)` resolves in this order:
+    1. env override (`MIMIR_LLM_MODEL` / `MIMIR_LLM_<ROLE>`) — temporary.
+    2. **pin file** — operator-persistent (survives restarts).
+    3. preference table.
+    4. first local model that exists.
+* Cloud guardrail (`_is_cloud` + `_ALLOW_CLOUD`) still applies to pins.
+* CLI:
+    `mimir-slm promote mimir-slm:20261123`           # planner + adviser
+    `mimir-slm promote mimir-slm:20261123 --role all`  # all four roles
+    `mimir-slm promote --show`                        # current pin map
+    `mimir-slm promote --rollback --role planner`     # un-pin one role
+    `mimir-slm promote --rollback`                    # clear the file
+
+Flow: train with DPO/GRPO → tag the GGUF in Ollama → `mimir-slm promote`.
+`qualia.decide` picks the SLM up on the next call. No code change needed.

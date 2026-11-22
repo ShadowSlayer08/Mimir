@@ -303,8 +303,9 @@ def test_cli_curate_updates_outcome():
 
 def test_cli_placeholders_do_not_fail():
     # `train` stopped being a placeholder in Phase 25 — it now dispatches to
-    # the real DPO trainer (slm.train_dpo) and requires --db; tested in
-    # tests/test_phase25_fixes.py. Only `eval` and `promote` remain as
-    # documented placeholders in Phase 23-24 scope.
-    for sub in ("eval", "promote"):
+    # the real DPO trainer (slm.train_dpo). `promote` stopped being a
+    # placeholder in Phase 27 — it now writes ~/.mimir/llm-pins.json.
+    # Only `eval` remains as a documented placeholder; it's wired to
+    # evals/bench.py's --compare-llm mode (not in-tree training).
+    for sub in ("eval",):
         assert mimir_slm.main([sub]) == 0

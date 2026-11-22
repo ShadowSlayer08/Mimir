@@ -145,6 +145,46 @@ def _rerank(engagement, lessons_db=None):
 # Re-dispatch — run the modules dispatcher against newly-discovered services
 # so the plan GROWS mid-loop. Phase 25 fix for "v2 just re-ranks."
 # --------------------------------------------------------------------------- #
+def _synth_app_targets(new_urls, new_subdomains):
+    """Build the app_targets list that `modules.dispatch_apps` expects from
+    just the URLs + subdomains an iteration discovered.
+
+    Each dict is {"kind": "web", "host": <host>, "ref": <url>, "label": ...}
+    — the same shape apptargets.app_targets() emits. We deliberately don't
+    guess API-ness here; a new URL is a web target by default. API/mobile/
+    thick/cloud targets should come from the operator's launch args, not
+    from inferred discovery.
+    """
+    from urllib.parse import urlparse
+    targets = []
+    seen = set()
+    for u in new_urls or []:
+        url = (u.get("url") if isinstance(u, dict) else str(u)) or ""
+        if not url:
+            continue
+        try:
+            host = urlparse(url).hostname or ""
+        except Exception:
+            host = ""
+        if not host or (host, url) in seen:
+            continue
+        seen.add((host, url))
+        targets.append({"kind": "web", "host": host, "ref": url,
+                        "label": f"autopilot-v2:{host}"})
+    for sub in new_subdomains or []:
+        sub = (sub or "").strip().lower().rstrip(".")
+        if not sub:
+            continue
+        for scheme in ("https", "http"):
+            url = f"{scheme}://{sub}/"
+            if (sub, url) in seen:
+                continue
+            seen.add((sub, url))
+            targets.append({"kind": "web", "host": sub, "ref": url,
+                            "label": f"autopilot-v2:{sub}"})
+    return targets
+
+
 def _synth_report_for_new_services(engagement, new_services):
     """Build a minimal Mimir report shape around just the new (host, port,
     service) tuples so modules.dispatch can emit methodology for them without
@@ -180,33 +220,44 @@ def _synth_report_for_new_services(engagement, new_services):
 
 
 def _restage_from_discoveries(engagement, new_services, mode="vapt",
-                              noise_ceiling=5, accept_risk=("safe",)):
+                              noise_ceiling=5, accept_risk=("safe",),
+                              new_urls=None, new_subdomains=None):
     """Re-run the knowledge-driven modules dispatcher against new services
-    and append the resulting check steps as a synthetic attack path in the
-    engagement. Returns (new_steps, modules_called).
+    AND new AppSec targets. Appends the resulting check steps as a synthetic
+    attack path in the engagement. Returns (new_steps, modules_called).
 
-    This is what turns v2 from "re-ranker" into "growing agent": a
-    discovered port triggers its methodology, which lands new executable
-    steps for the next iteration to pick up.
+    Phase 26 — AppSec in autopilot: new URLs from httpx/feroxbuster/etc.
+    now get dispatched through `modules.dispatch_apps` as web targets, and
+    new subdomains from subfinder get the same treatment (resolved as web
+    app_targets). Infra path is unchanged.
 
     Safeguards:
-      * dedup by (host, port, module, check-name) against the existing
-        synthetic path
+      * dedup by (host, port, module, check-name) across iterations
       * respects the loop's noise_ceiling + accept_risk at append time
-        (so loud / intrusive steps only appear when the operator opted in)
     """
     try:
         import modules as _modules
     except Exception:                                              # pragma: no cover
         return 0, 0
-    if not new_services:
+    if not (new_services or new_urls or new_subdomains):
         return 0, 0
 
+    results = []
     report = _synth_report_for_new_services(engagement, new_services)
     try:
-        results = _modules.dispatch(report, mode=mode)
+        if new_services:
+            results.extend(_modules.dispatch(report, mode=mode))
     except Exception:                                              # pragma: no cover
-        return 0, 0
+        pass
+
+    # AppSec re-dispatch — new URLs + subdomain -> dispatch_apps web targets.
+    app_targets = _synth_app_targets(new_urls or [], new_subdomains or [])
+    if app_targets:
+        try:
+            results.extend(_modules.dispatch_apps(
+                app_targets, report, mode=mode))
+        except Exception:                                          # pragma: no cover
+            pass
 
     # Find or create the synthetic attack path.
     synth = None
@@ -286,7 +337,9 @@ def _observe_results(engagement, results):
     can re-dispatch modules against just-discovered ports."""
     agg = {"parsed_steps": 0, "new_hosts": [], "new_services": 0,
            "new_findings": 0, "new_credentials": 0,
-           "_raw_new_services": []}
+           "new_urls": 0, "new_subdomains": 0,
+           "_raw_new_services": [], "_raw_new_urls": [],
+           "_raw_new_subdomains": []}
     for r in results or []:
         if r.get("verdict") not in ("executed_ok", "executed_nonzero"):
             continue
@@ -311,6 +364,17 @@ def _observe_results(engagement, results):
         _merge_hosts(engagement, pr.new_hosts)
         agg["new_findings"] += _merge_findings(engagement, pr.new_findings)
         agg["new_credentials"] += len(pr.new_credentials)
+        # Phase 26: track new AppSec surface (URLs + subdomains).
+        existing_urls = _url_keys(engagement)
+        truly_new_urls = [u for u in (pr.new_urls or [])
+                          if u.get("url") not in existing_urls]
+        agg["_raw_new_urls"].extend(truly_new_urls)
+        agg["new_urls"] += _merge_urls(engagement, pr.new_urls)
+        existing_subs = _subdomain_keys(engagement)
+        truly_new_subs = [s for s in (pr.new_subdomains or [])
+                          if s.lower() not in existing_subs]
+        agg["_raw_new_subdomains"].extend(truly_new_subs)
+        agg["new_subdomains"] += _merge_subdomains(engagement, pr.new_subdomains)
     return agg
 
 
@@ -323,6 +387,43 @@ def _service_keys(engagement):
             keys.add((addr, p.get("port"),
                       (p.get("protocol") or p.get("proto") or "tcp").lower()))
     return keys
+
+
+# --------------------------------------------------------------------------- #
+# Phase 26 — AppSec surface tracking (URLs + subdomains) on the engagement.
+# --------------------------------------------------------------------------- #
+def _url_keys(engagement):
+    return {u.get("url") for u in (engagement.get("appsec_urls") or [])
+            if isinstance(u, dict) and u.get("url")}
+
+
+def _subdomain_keys(engagement):
+    return {(s or "").lower() for s in (engagement.get("appsec_subdomains") or [])}
+
+
+def _merge_urls(engagement, new_urls):
+    bucket = engagement.setdefault("appsec_urls", [])
+    seen = _url_keys(engagement)
+    added = 0
+    for u in new_urls or []:
+        if not isinstance(u, dict) or not u.get("url"):
+            continue
+        if u["url"] in seen:
+            continue
+        bucket.append(u); seen.add(u["url"]); added += 1
+    return added
+
+
+def _merge_subdomains(engagement, new_subs):
+    bucket = engagement.setdefault("appsec_subdomains", [])
+    seen = _subdomain_keys(engagement)
+    added = 0
+    for s in new_subs or []:
+        sl = (s or "").lower().strip()
+        if not sl or sl in seen:
+            continue
+        bucket.append(s); seen.add(sl); added += 1
+    return added
 
 
 # --------------------------------------------------------------------------- #
@@ -382,15 +483,19 @@ def run_loop(engagement, *, max_iterations=DEFAULT_MAX_ITERATIONS,
         agg["merged_services"] += parsed["new_services"]
         agg["merged_findings"] += parsed["new_findings"]
 
-        # Phase 25 fix: re-dispatch modules against the new services so the
-        # plan GROWS mid-loop instead of only being re-ranked. Respects the
-        # same noise_ceiling + accept_risk the loop was launched with.
+        # Phase 25+26: re-dispatch modules against the new discoveries so
+        # the plan GROWS mid-loop instead of only being re-ranked. New
+        # services -> infra modules. New URLs / subdomains -> AppSec
+        # modules via dispatch_apps. Respects the same noise_ceiling +
+        # accept_risk the loop was launched with.
         redispatch_mode = autopilot_kwargs.get("mode") or "vapt"
         new_steps, modules_called = _restage_from_discoveries(
             engagement, parsed["_raw_new_services"],
             mode=redispatch_mode,
             noise_ceiling=autopilot_kwargs.get("noise_ceiling", 5),
-            accept_risk=autopilot_kwargs.get("accept_risk") or ("safe",))
+            accept_risk=autopilot_kwargs.get("accept_risk") or ("safe",),
+            new_urls=parsed["_raw_new_urls"],
+            new_subdomains=parsed["_raw_new_subdomains"])
 
         reranked = _rerank(engagement, lessons_db=lessons_db)
 
@@ -403,6 +508,8 @@ def run_loop(engagement, *, max_iterations=DEFAULT_MAX_ITERATIONS,
             "new_services": parsed["new_services"],
             "new_findings": parsed["new_findings"],
             "new_credentials": parsed["new_credentials"],
+            "new_urls": parsed["new_urls"],
+            "new_subdomains": parsed["new_subdomains"],
             "redispatched_steps": new_steps,
             "redispatched_modules": modules_called,
             "reranked_actions": reranked,
@@ -424,6 +531,7 @@ def run_loop(engagement, *, max_iterations=DEFAULT_MAX_ITERATIONS,
         # alive even when parsing yielded no new findings directly.)
         if (parsed["parsed_steps"] == 0 and parsed["new_services"] == 0
                 and parsed["new_findings"] == 0 and not parsed["new_hosts"]
+                and parsed["new_urls"] == 0 and parsed["new_subdomains"] == 0
                 and new_steps == 0):
             dry_streak += 1
             if dry_streak >= 2 or v1["summary"].get("started", 0) == 0:

@@ -22,12 +22,19 @@ from .base import ParseResult
 from . import nmap as _nmap
 from . import nuclei as _nuclei
 from . import generic as _generic
+from . import httpx as _httpx
+from . import subfinder as _subfinder
+from . import feroxbuster as _feroxbuster
 
 
 _ROUTES = (
-    (("nmap",),         _nmap.parse),
-    (("nuclei",),       _nuclei.parse),
-    # add more here: (("httpx",), _httpx.parse), (("subfinder",), ...), ...
+    (("nmap",),                                    _nmap.parse),
+    (("nuclei",),                                  _nuclei.parse),
+    # AppSec surface — Phase 26.
+    (("httpx",),                                   _httpx.parse),
+    (("subfinder", "assetfinder", "amass"),        _subfinder.parse),
+    (("feroxbuster", "gobuster", "dirsearch",
+      "ffuf"),                                     _feroxbuster.parse),
 )
 
 

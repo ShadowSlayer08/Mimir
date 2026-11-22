@@ -136,12 +136,31 @@ def local_models():
 
 
 def pick(role="planner"):
-    """Choose the best locally-available model for a role (None if none/offline)."""
+    """Choose the best locally-available model for a role (None if none/offline).
+
+    Resolution order:
+      1. MIMIR_LLM_MODEL env (any role)    — one-shot temporary override.
+      2. MIMIR_LLM_<ROLE>   env            — per-role temporary override.
+      3. ~/.mimir/llm-pins.json            — operator-persistent pin
+         (Phase 27; `mimir-slm promote`). The cloud guardrail still applies.
+      4. preference-order match           — _PREF table.
+      5. First local model that exists    — last-resort fallback.
+    """
     forced = os.environ.get("MIMIR_LLM_MODEL", os.environ.get("VANTAGE_LLM_MODEL", os.environ.get("MIMIR_LLM_MODEL", os.environ.get("VANTAGE_LLM_MODEL")))) or os.environ.get(_ENV_ROLE.get(role, ""), "")
     if forced:
         if _is_cloud(forced) and not _ALLOW_CLOUD:
             return None                                    # refuse a cloud model by default
         return forced
+    # Phase 27 — operator-persistent pin (survives restarts).
+    try:
+        from slm.promote import pin_for as _pin_for
+        pinned = _pin_for(role)
+        if pinned:
+            if _is_cloud(pinned) and not _ALLOW_CLOUD:
+                return None
+            return pinned
+    except Exception:                                      # pragma: no cover
+        pass
     names = local_models()
     if not names:
         return None

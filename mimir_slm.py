@@ -44,6 +44,7 @@ from slm import rl as _rl             # noqa: E402
 from slm import bridge as _bridge     # noqa: E402
 from slm import seed as _seed         # noqa: E402
 from slm import train_dpo as _dpo     # noqa: E402
+from slm import promote as _promote   # noqa: E402
 
 
 def _force_utf8_stdio():
@@ -313,14 +314,52 @@ def cmd_eval(args):
 
 
 def cmd_promote(args):
-    print("mimir-slm promote — Phase 23 PLACEHOLDER", file=sys.stderr)
-    print()
-    print("Planned surface:")
-    print("  mimir-slm promote <model-tag>   # pins qualia.decide to this model")
-    print("  mimir-slm promote --rollback    # restores whatever Ollama served before")
-    print()
-    print("Implementation: writes MIMIR_LLM_PLANNER / MIMIR_LLM_NARRATOR / MIMIR_LLM_ADVISER")
-    print("into ~/.mimir/llm-pins so llm.py's role picker uses the promoted tag until rolled back.")
+    """Phase 27 — real pin manager. Writes ~/.mimir/llm-pins.json; llm.pick
+    reads it between env overrides and the preference table."""
+    if args.show:
+        s = _promote.show()
+        print(json.dumps(s, indent=2, sort_keys=True))
+        return 0
+    if args.rollback:
+        # `--rollback` with no role wipes the file; with --role only clears
+        # that one pin.
+        try:
+            after = _promote.rollback(role=args.role)
+        except ValueError as exc:
+            print(f"[mimir-slm] {exc}", file=sys.stderr); return 2
+        print(f"[mimir-slm] rollback  "
+              f"{'(cleared all)' if not args.role else f'(cleared {args.role})'}  "
+              f"remaining pins: {list(after.keys()) or '(none)'}",
+              file=sys.stderr)
+        return 0
+    if not args.tag:
+        print("[mimir-slm] usage: promote <tag> [--role ROLE]  "
+              "OR --show  OR --rollback [--role ROLE]",
+              file=sys.stderr); return 2
+    # Default is planner + adviser (decision-heavy roles). --role 'all'
+    # expands to every role; --role planner/adviser/narrator/embed pins one.
+    if args.role == "all":
+        roles = list(_promote._ROLES)
+    elif args.role:
+        roles = [args.role]
+    else:
+        roles = ["planner", "adviser"]
+    try:
+        pins = _promote.promote(args.tag, roles=roles)
+    except ValueError as exc:
+        print(f"[mimir-slm] {exc}", file=sys.stderr); return 2
+    print(f"[mimir-slm] promoted {args.tag}  roles={roles}  "
+          f"total pins: {pins}", file=sys.stderr)
+    # Soft check: warn if the tag isn't visible to the local Ollama daemon.
+    try:
+        import llm
+        local = llm.local_models()
+        if local and args.tag not in local:
+            print(f"[mimir-slm] NOTE: {args.tag} isn't in `ollama list` right "
+                  f"now ({len(local)} models visible). Pull or create it "
+                  f"before qualia.decide can use it.", file=sys.stderr)
+    except Exception:                                              # pragma: no cover
+        pass
     return 0
 
 
@@ -428,9 +467,21 @@ def main(argv=None):
                    help="validate the pair dataset without touching a GPU")
     p.set_defaults(fn=cmd_train)
 
-    for n, fn in (("eval", cmd_eval), ("promote", cmd_promote)):
-        p = sub.add_parser(n, help=f"{n} the SLM (documented recipe)")
-        p.set_defaults(fn=fn)
+    p = sub.add_parser("promote",
+                       help="pin a trained SLM tag to llm.py roles (persistent)")
+    p.add_argument("tag", nargs="?",
+                   help="Ollama tag to pin (e.g. mimir-slm:20261123)")
+    p.add_argument("--role",
+                   help="role to pin (planner / adviser / narrator / embed / all). "
+                        "Default: planner + adviser.")
+    p.add_argument("--show", action="store_true",
+                   help="print the current pin map")
+    p.add_argument("--rollback", action="store_true",
+                   help="remove pins (--role to target one role; else clear all)")
+    p.set_defaults(fn=cmd_promote)
+
+    p = sub.add_parser("eval", help="eval the SLM (documented recipe)")
+    p.set_defaults(fn=cmd_eval)
 
     args = ap.parse_args(argv)
     if not getattr(args, "fn", None):

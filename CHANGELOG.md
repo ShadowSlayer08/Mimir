@@ -10,6 +10,32 @@ and the project tracks [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Phase 27 — `mimir-slm promote` pin manager (the "ship it" moment).**
+  `slm/promote.py` reads/writes `~/.mimir/llm-pins.json` (overridable via
+  `MIMIR_LLM_PINS=`). `llm.pick(role)` now resolves in this order:
+  env override (`MIMIR_LLM_MODEL` / `MIMIR_LLM_<ROLE>`) → **pin file** →
+  preference table → first local model. Cloud guardrail still applies
+  to the pin. CLI: `mimir-slm promote <tag>` defaults to `planner +
+  adviser` roles; `--role {planner|adviser|narrator|embed|all}` targets
+  one or all; `--show` prints the current map; `--rollback [--role R]`
+  removes one or clears the whole file. Warns if the promoted tag isn't
+  visible to `ollama list` right now.
+- **Phase 26 — AppSec surface in Autopilot v2.**
+  * `parsers.base.ParseResult` gains `new_urls` + `new_subdomains`.
+  * New parsers: `parsers.httpx` (JSONL), `parsers.subfinder`
+    (subdomain-per-line; routes `subfinder` / `assetfinder` / `amass`),
+    `parsers.feroxbuster` (text + JSON; routes `feroxbuster` /
+    `gobuster` / `dirsearch` / `ffuf`).
+  * `autopilot_loop._observe_results` tracks new URLs + subdomains
+    per iteration and merges them into `engagement["appsec_urls"]` and
+    `["appsec_subdomains"]` (dedup'd).
+  * `autopilot_loop._restage_from_discoveries` now accepts `new_urls` +
+    `new_subdomains` and calls `modules.dispatch_apps` with synthesised
+    `{"kind":"web", ...}` app_targets so AppSec checks land on the
+    `AUTOPILOT-V2-SYNTH` attack path alongside infra checks. Each new
+    subdomain spawns both `http://sub/` and `https://sub/` targets.
+  * Convergence also waits on new URLs + subdomains before early-exit.
+  * 14 new tests covering every parser shape + the full loop plumbing.
 - **Phase 25 — four fixes to the gaps surfaced at end of Phase 24:**
   * **Autopilot v2 re-dispatch** (`autopilot_loop._restage_from_discoveries`).
     After each iteration's parse + merge, the loop now runs the knowledge-
