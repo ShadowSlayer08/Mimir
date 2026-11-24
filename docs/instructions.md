@@ -10,12 +10,36 @@ This tooling is for **authorized penetration testing, lab and CTF use**. Every
 target must be inside a written engagement scope. The engine helps plan and
 track; the operator is responsible for authorization.
 
-## 2. Methodology, not weaponization
-Modules emit **enumeration and authorized credential-testing methodology** mapped
-to MITRE ATT&CK. The engine does **not** ship or auto-launch exploit payloads.
-Attack paths are *planned* and *staged* for a human operator who executes each
-step manually — see `attack_paths.md`. Staging requires explicit scope
-confirmation.
+## 2. Methodology-driven autonomous testing
+Modules emit **enumeration and authorized credential-testing methodology**
+mapped to MITRE ATT&CK. The engine now ships **two first-class execution
+modes**, and the operator picks per run:
+
+* **Staging mode** — the engine assesses, correlates, ranks, narrates, and
+  hands the operator a runbook. A human runs each step with their own
+  tooling. This is the default when no autonomous flag is set.
+* **Autonomous mode** — the operator passes `--yes-i-am-authorized` and
+  `mimir-autopilot` (v1) or `mimir-autopilot-loop` (v2) *runs* the staged
+  methodology. The gate chain described in rules 6–7 enforces authorization
+  at every subprocess spawn; autonomy without those gates is never
+  permitted.
+
+What stays off-limits in both modes, without exception:
+
+* The engine does **not** ship or bundle exploit payloads, implants, C2
+  agents, or offensive primitives. `mimir-autopilot` invokes the TOOLS
+  the operator installed (nmap, nuclei, httpx, burp, msfconsole from the
+  operator's own Metasploit install, etc.); it does not host them.
+* No module may author a step that would weaponize a finding into an
+  implant; staging and autonomous execution both operate on the same
+  methodology shape (recon, authorized credential testing, authorized
+  misconfiguration checks).
+* The constitution's rule 1 (written authorization) applies identically
+  to both modes. Autonomous mode is more dangerous, not less authorized.
+
+Autonomous mode is layered: **fact-driven**, **verified-only**, **budget-
+bounded**, **argv-allow-listed**, and **attribution-stamped** — see rule
+6 and rule 8.
 
 ## 3. Knowledge-driven
 Methodology, routing and mappings live in `docs/` as Markdown, not in code (see
@@ -35,11 +59,11 @@ carry an OWASP (WSTG / API Top 10 / MASVS) reference and a CWE id alongside it.
 - Keep built-in fallbacks working if the knowledge base is absent.
 - Validate knowledge after edits (`python3 knowledge_loader.py`).
 
-## 6. Autopilot mode (opt-in)
-The default flow is still **stage + hand to a human operator**. Rule 2 stands.
-Autopilot v1 (`autopilot.py` / `mimir-autopilot`) is an **explicit, per-run
-opt-in** that lets the engine *run* the steps it has already staged, one pass,
-under the same safety layers that gate every subprocess spawn:
+## 6. Autopilot — the gate chain (first-class autonomous mode)
+Autopilot v1 (`autopilot.py` / `mimir-autopilot`) and v2
+(`autopilot_loop.py` / `mimir-autopilot-loop`) run the staged methodology
+under a layered gate chain that enforces authorization at every subprocess
+spawn:
 
 1. **Explicit authorization flag.** `autopilot.py` refuses to do anything
    without `--yes-i-am-authorized`. This is the operator's attestation that
@@ -72,11 +96,53 @@ under the same safety layers that gate every subprocess spawn:
     steps already executed OK. SIGINT lets the running step finish, then
     halts the run cleanly.
 
-Autopilot is still a **methodology executor**: it runs what the staged queue
+Autopilot is a **methodology executor**: it runs what the staged queue
 contains — nmap probes, HTTP enumeration, auth-protocol checks, authorised
 credential tests — not exploitation primitives. The engine does not plan
 offensive tradecraft inside autopilot that the staging pass itself wouldn't
 have produced.
+
+## 8. Autonomous-mode hardening (Phase 28, borrowed from ARTEX + Cairn)
+Autonomous mode is dangerous enough to deserve its own layer of safety on
+top of the gate chain. These rules apply to every autopilot subprocess and
+every v2 loop iteration:
+
+1. **Argv allow-list** — on top of the deny-list command-safety grep, the
+   operator may supply an *allow-list* of permitted argv prefixes via
+   `--allow-bin nmap --allow-bin curl ...` or
+   `MIMIR_AUTOPILOT_ALLOWED_BINS=nmap,curl,dig,...`. When set, any command
+   whose first token isn't in the list is skipped with
+   `skipped_argv_not_allowed`. Pipes, redirects, and shell wrappers
+   (`sudo`, `env`, `xargs`, `find -exec`, backticks, `$(...)`) never
+   inherit the allow — each simple command inside the chain must itself
+   pass the gate.
+2. **Dial-time scope re-check** — ROE's scope gate is enforced at step-
+   emit time, but DNS can change between emit and fire. Before each
+   subprocess spawn, the engine resolves every hostname in the command
+   and refuses execution if any resolved address falls outside the ROE's
+   in-scope CIDRs. This defeats rebinding and short-TTL drift. Managed
+   by `scope_guard.py`; only kicks in when ROE supplies an explicit
+   in-scope IP list.
+3. **Budget caps** — the loop tracks cumulative token spend (LLM-using
+   steps) and turns across iterations. `--budget-tokens N` and
+   `--budget-turns N` cap the run; the next step after the cap lands
+   `skipped_budget`. Default: unbounded; `--budget auto` applies
+   sensible ceilings per OPSEC profile (stealth=low, aggressive=high).
+4. **Approver attribution** — every verdict in the ledger carries an
+   `approved_by` field, one of `rule` (gate chain passed on its own),
+   `human` (`--confirm` answered yes), `model` (an LLM-based gate
+   endorsed it), or `system` (dry-run or auto-approved by env). The
+   ledger is append-only and signed-off audit evidence.
+5. **Verified findings** — when a parser emits a finding, the engine
+   requires a verbatim evidence quote tying the claim to captured
+   output. Findings without a quote land as `verified=false` and the
+   co-pilot deprioritizes them in ranking.
+6. **Fact ledger** — every autopilot step produces an immutable Fact
+   (`fact_ledger.py`); state changes are append-only. A corrective
+   Fact can `reopen` a prior conclusion (lessons.py outcomes, external
+   judges, or `mimir-facts reopen`). The engagement JSON stays the
+   mutable summary; the Fact ledger is the source of truth for replay,
+   SLM training, and audit.
 
 ### 6a. Autopilot v2 — observe-decide-run loop
 Autopilot v2 (`autopilot_loop.py` / `mimir-autopilot-loop`, also reachable via
@@ -137,6 +203,19 @@ Training recipe (operator-driven, when ready):
 
 Cloud models stay excluded (`MIMIR_LLM_ALLOW_CLOUD=1` escape hatch
 unchanged). Fine-tuning is local-only.
+
+## 7. Autopilot v2 — observe-decide-run loop (Phase 21+22)
+`mimir-autopilot --loop N` (or `mimir-autopilot-loop`) wraps v1 in an outer
+loop: each iteration parses every executed step's stdout via `parsers/`,
+merges new hosts / services / URLs / subdomains / findings back into the
+engagement JSON, re-dispatches the knowledge-driven modules against the
+new discoveries (plan GROWS mid-loop), re-ranks via copilot, and
+iterates with early-exit convergence.
+
+The gate chain from rule 6 is reused unchanged. Every iteration passes
+through institutional / ROE / noise / risk / command-safety / argv-
+allow-list / dial-time-scope gates, with the per-step timeout and
+cumulative budget caps. v2 never relaxes v1 safety.
 
 ### 6c. Reinforcement learning + mutual teacher training (Phase 24)
 Phase 24 adds a reward signal, a GRPO-ready data pipeline, and a mutual-

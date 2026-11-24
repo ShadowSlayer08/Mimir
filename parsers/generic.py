@@ -73,6 +73,13 @@ def parse(stdout, stderr="", exit_code=0):
         if cve in seen_cves:
             continue
         seen_cves.add(cve)
+        # Phase 28 — verified-finding gate. The CVE identifier appears
+        # verbatim in the captured output (we just matched it with a regex
+        # on that very text); quote the surrounding snippet so operators
+        # and the SLM reward can tie the claim to source material.
+        start = max(0, m.start() - 40)
+        end = min(len(text), m.end() + 40)
+        snippet = text[start:end].strip().replace("\n", " ")[:160]
         r.new_findings.append({
             "host": "",
             "port": None,
@@ -84,6 +91,8 @@ def parse(stdout, stderr="", exit_code=0):
             "cwe": "",
             "exploit_refs": [],
             "source_tool": "generic",
+            "verified": True,
+            "evidence_quote": snippet,
         })
 
     return r

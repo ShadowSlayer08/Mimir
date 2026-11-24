@@ -36,7 +36,9 @@ enrich.py                     live CISA-KEV + FIRST-EPSS feeds (cached, offline-
 exploit_refs.py               CVE -> public exploit REFERENCES (links, never payloads); bundled seed + ExploitDB cache
 cvss4.py                      CVSS 4.0 vector + band per finding (deterministic, offline-safe)
 roe.py                        Rules of Engagement hard-gates — machine-checked filter of the staged queue (mimir-roe)
-autopilot.py                  Autopilot v1 — opt-in one-pass executor of the staged plan; gate-chained (institutional/scope/window/forbidden-tech/noise/risk/cmd-safety), resumable, dry-run, per-step timeout, ledger-audited (mimir-autopilot)
+autopilot.py                  Autopilot v1 — opt-in one-pass executor of the staged plan; 9-stage gate chain (institutional / scope / window / forbidden-tech / noise / risk / command-safety-deny + Phase 28: argv-allow-list + dial-time-scope); approver attribution per verdict; budget caps (tokens/turns); Fact-ledger audited (mimir-autopilot)
+scope_guard.py                Phase 28: dial-time DNS re-check (ARTEX ADR-002). Before subprocess spawn, resolve every hostname in the command and refuse if any resolved IP falls outside ROE in_scope CIDRs. Defeats DNS rebinding + short-TTL drift.
+fact_ledger.py                Phase 28: append-only Fact graph (Cairn pattern). Immutable Facts, hyperedge intents via from_fact_ids, reopen = corrective Fact citing original. SQLite-backed per-engagement (mimir-facts).
 autopilot_loop.py             Autopilot v2 — observe-decide-run loop around v1; parses each step's output via parsers/, merges new intel back into the engagement JSON, re-ranks via copilot, iterates with early-exit (mimir-autopilot-loop)
 parsers/                      tool-output parsers for Autopilot v2's observe step:
                                 nmap (text + grepable + XML), nuclei (JSONL),

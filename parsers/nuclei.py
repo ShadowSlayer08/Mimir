@@ -57,6 +57,12 @@ def parse(stdout, stderr="", exit_code=0):
         for cw in (classif.get("cwe-id") or [])[:1]:
             cwe = cw
 
+        # Phase 28 — verified-finding gate (from ARTEX). The matched-at URL
+        # was the proof; we re-quote it from the JSONL line itself (nuclei
+        # already emitted it, so this is a self-verification) but downstream
+        # consumers can look for it in the step's captured stdout tail.
+        matched_at = e.get("matched-at", "") or ""
+        verified = bool(matched_at)
         r.new_findings.append({
             "host": host,
             "port": None,
@@ -68,6 +74,8 @@ def parse(stdout, stderr="", exit_code=0):
             "owasp": "",
             "exploit_refs": [],
             "source_tool": "nuclei",
-            "matched_at": e.get("matched-at", ""),
+            "matched_at": matched_at,
+            "verified": verified,
+            "evidence_quote": matched_at,
         })
     return r

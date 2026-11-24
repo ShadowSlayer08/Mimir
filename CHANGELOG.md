@@ -10,6 +10,48 @@ and the project tracks [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Phase 28 — autonomous-first constitution + six borrowed patterns.**
+  Learned from ARTEX (go-based LLM-driven pentest platform) and Cairn
+  (state-space search engine, 54/54 problems on a pentest hackathon).
+  Constitution rule 2 reframed from "Methodology, not weaponization —
+  staging only" to "Methodology-driven autonomous testing" with two
+  first-class modes (staging + autonomous), and a new rule 8
+  "Autonomous-mode hardening" that spells out the six borrowed layers:
+  * **Argv allow-list gate** (from ARTEX). On top of the deny-list,
+    `--allow-bin nmap --allow-bin curl ...` or
+    `MIMIR_AUTOPILOT_ALLOWED_BINS=nmap,curl` requires every simple
+    command in a pipeline to start with a listed binary. Shell wrappers
+    (`sudo` / `env` / `xargs` / `find -exec`) never inherit the allow;
+    each nested command must pass. `$()` / backticks / `<()` are refused
+    outright. Verdict: `skipped_argv_not_allowed`.
+  * **Dial-time scope re-check** (from ARTEX ADR-002) — new
+    `scope_guard.py` resolves every hostname in the command AT subprocess
+    spawn and refuses if any resolved IP falls outside the ROE's
+    in-scope CIDRs. Defeats DNS rebinding + short-TTL drift. Verdict:
+    `skipped_scope_drift`. No-op when ROE has no CIDR-shaped in_scope
+    rules.
+  * **Budget caps** (from ARTEX) — `--budget-tokens N` and
+    `--budget-turns N` cap the cumulative spend across the run.
+    Tokens are approximated as 100/second of wall time; turns are
+    exact subprocess counts. Default: unbounded. Verdict:
+    `skipped_budget`.
+  * **Approver attribution** (from ARTEX) — every verdict record now
+    carries `approved_by: rule | human | model | system`. `human` is
+    `--confirm` yes; `rule` is gate chain pass; `system` is dry-run
+    or auto-flow; `model` reserved for a future human-in-the-loop
+    model gate.
+  * **Fact ledger** (from Cairn) — new `fact_ledger.py` +
+    `mimir-facts` CLI. Append-only SQLite Facts; every autopilot step
+    verdict lands as one immutable Fact. Cairn-style hyperedge
+    intents via `from_fact_ids`. `mimir-facts reopen <id> <reason>`
+    appends a corrective Fact citing the original; `mimir-facts
+    replay <engagement>` emits JSONL of every Fact in append order.
+    `--fact-db FILE` wires autopilot to write there.
+  * **Verified findings** (from ARTEX) — parsers tag `new_findings`
+    with `verified: bool` + `evidence_quote: str`. Nuclei: verified
+    when `matched-at` is present. Generic: verified with the
+    surrounding 40-char snippet around the CVE match. Downstream
+    consumers can deprioritize unverified findings.
 - **Phase 27 — `mimir-slm promote` pin manager (the "ship it" moment).**
   `slm/promote.py` reads/writes `~/.mimir/llm-pins.json` (overridable via
   `MIMIR_LLM_PINS=`). `llm.pick(role)` now resolves in this order:

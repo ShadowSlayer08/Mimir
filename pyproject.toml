@@ -77,6 +77,7 @@ mimir-adversary = "adversary:main"
 mimir-autopilot = "autopilot:main"
 mimir-autopilot-loop = "autopilot_loop:main"
 mimir-slm = "mimir_slm:main"
+mimir-facts = "fact_ledger:main"
 
 # Flat layout: enumerate every shipped top-level module explicitly, plus the
 # modules/ code package and the docs/ knowledge base as importable DATA

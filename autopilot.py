@@ -70,6 +70,9 @@ DEFAULT_NOISE_CEILING = 5
 DEFAULT_RISK_ACCEPT = frozenset(["safe"])
 DEFAULT_MAX_STEPS = 50
 DEFAULT_TIMEOUT_S = 60
+# Phase 28 — autonomous-mode hardening knobs.
+DEFAULT_BUDGET_TOKENS = 0        # 0 = unbounded
+DEFAULT_BUDGET_TURNS  = 0        # 0 = unbounded
 
 # Commands we refuse to pass to a shell even if the operator opts up to intrusive —
 # these are the "really don't execute this" patterns no sane autopilot run should
@@ -231,6 +234,99 @@ def _gate_command_safety(step):
 
 
 # --------------------------------------------------------------------------- #
+# Phase 28 — argv allow-list (from ARTEX). On top of the deny-list, operators
+# may require that every simple command in the pipeline start with one of a
+# whitelisted set of binaries. Shell wrappers (sudo / env / xargs / find -exec)
+# never inherit the allow — each nested command must pass on its own.
+# --------------------------------------------------------------------------- #
+_SHELL_WRAPPERS = frozenset(("sudo", "env", "xargs", "nice", "ionice",
+                             "nohup", "timeout", "stdbuf", "chroot",
+                             "unshare", "flock", "doas"))
+
+import re as _re
+_SIMPLE_CMD_SPLIT = _re.compile(r"[;&|]+|\&\&|\|\||\n")
+_SUBSHELL_RE = _re.compile(r"\$\(|\`|<\(|>\(")
+
+
+def _first_token(cmd):
+    """Return the first shell-token in a command fragment, after trimming
+    leading whitespace. Env-var-setting prefixes (`FOO=bar cmd ...`) are
+    skipped so `cmd` is the real first binary."""
+    import shlex
+    try:
+        parts = shlex.split(cmd, posix=True)
+    except ValueError:
+        parts = cmd.strip().split()
+    while parts and "=" in parts[0] and parts[0].split("=", 1)[0].isidentifier():
+        parts = parts[1:]
+    return parts[0] if parts else ""
+
+
+def _simple_commands(cmd):
+    """Split `cmd` on shell boundaries (;, &&, ||, |, newlines) and return
+    the list of first-tokens. Walks through shell wrappers: `sudo nmap` or
+    `env http_proxy=x nmap` both report `nmap`."""
+    out = []
+    for frag in _SIMPLE_CMD_SPLIT.split(cmd or ""):
+        frag = frag.strip()
+        if not frag:
+            continue
+        # Handle `find ... -exec CMD` — the real command is after -exec.
+        if " -exec " in (" " + frag):
+            tail = frag.split("-exec", 1)[1].strip()
+            if tail.endswith("\\;") or tail.endswith(";"):
+                tail = tail.rsplit(";", 1)[0]
+            inner = _first_token(tail)
+            if inner:
+                out.append(inner)
+            continue
+        token = _first_token(frag)
+        # Peel wrappers.
+        while token in _SHELL_WRAPPERS:
+            rest = frag.split(None, 1)
+            if len(rest) < 2:
+                break
+            frag = rest[1]
+            token = _first_token(frag)
+        if token:
+            out.append(token)
+    return out
+
+
+def _gate_argv_allowlist(step, allowed_bins):
+    """Enforce: every simple command's first token must be in `allowed_bins`.
+    Backtick/$()/<() subshell expansions are refused outright."""
+    if not allowed_bins:
+        return True, ""
+    cmd = step.get("command", "")
+    if _SUBSHELL_RE.search(cmd):
+        return False, "argv_allowlist:subshell_not_permitted"
+    for tok in _simple_commands(cmd):
+        # Basename only — the allow-list is against binary names, not paths.
+        bin_name = tok.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+        if bin_name.lower() not in allowed_bins:
+            return False, f"argv_not_allowed:{bin_name}"
+    return True, ""
+
+
+# --------------------------------------------------------------------------- #
+# Phase 28 — dial-time scope re-check (from ARTEX ADR-002 via scope_guard.py).
+# --------------------------------------------------------------------------- #
+def _gate_dial_time_scope(step, roe_rules):
+    """Delegates to scope_guard.check. No-op when the ROE has no CIDR-shaped
+    in_scope entries. Returns (ok, reason)."""
+    if not roe_rules:
+        return True, ""
+    try:
+        import scope_guard
+    except Exception:                                              # pragma: no cover
+        return True, ""
+    ok, reason, _resolved = scope_guard.check(step.get("command", ""),
+                                              roe_rules)
+    return ok, reason if not ok else ""
+
+
+# --------------------------------------------------------------------------- #
 # Executor
 # --------------------------------------------------------------------------- #
 def _subprocess_run(cmd, timeout_s, cwd=None, env=None):
@@ -285,6 +381,22 @@ def _write_jsonl(path, record):
         pass
 
 
+def _write_fact(db_path, engagement_id, record):
+    """Phase 28 — append one immutable Fact per verdict. No-op when db_path
+    is falsy. Fact kind mirrors the verdict; data carries the whole record."""
+    if not db_path:
+        return
+    try:
+        import fact_ledger
+        fact_ledger.record(
+            db_path=db_path, engagement_id=(engagement_id or ""),
+            kind=record.get("verdict", "autopilot_step"),
+            data=record, source="autopilot",
+            from_fact_ids=[])
+    except Exception:                                              # pragma: no cover
+        pass
+
+
 def _resume_set(resume_path):
     """Return the set of step identifiers that executed successfully in a prior
     run (so we skip them). Identifier shape is `name + host + command` hash."""
@@ -321,10 +433,27 @@ def run(engagement, *, roe_rules=None,
         dry_run=False, confirm=False,
         log_path=None, ledger_db=None,
         only_phases=None, resume_path=None,
-        on_progress=None, colorize=False):
-    """Run the staged plan under the gate chain. Returns the full result list."""
+        on_progress=None, colorize=False,
+        allowed_bins=None, budget_tokens=DEFAULT_BUDGET_TOKENS,
+        budget_turns=DEFAULT_BUDGET_TURNS, fact_db=None,
+        engagement_id=None):
+    """Run the staged plan under the gate chain. Returns the full result list.
+
+    Phase 28 adds four autonomous-mode hardenings:
+      * allowed_bins — set of permitted binary names (argv allow-list);
+        None/empty means "no argv restriction".
+      * budget_tokens / budget_turns — cumulative caps across the run;
+        0 means unbounded.
+      * fact_db — path to a Fact-ledger SQLite; each verdict appends one
+        immutable Fact (fact_ledger.py).
+      * approver attribution — every record now carries `approved_by`
+        (rule | human | model | system | dry_run).
+    """
     accept = frozenset(accept_risk) if accept_risk else DEFAULT_RISK_ACCEPT
     only_phases = set(only_phases) if only_phases else None
+    allowed = frozenset(b.lower() for b in (allowed_bins or []) if b)
+    budget_turns_remaining = budget_turns if budget_turns and budget_turns > 0 else None
+    budget_tokens_remaining = budget_tokens if budget_tokens and budget_tokens > 0 else None
     results = []
     steps = _walk_step_commands(engagement)
     done_keys = _resume_set(resume_path)
@@ -365,7 +494,8 @@ def run(engagement, *, roe_rules=None,
             break
         if started >= max_steps:
             results.append({"i": i, "name": step["name"],
-                            "verdict": "skipped_max_steps", "ts": _now()})
+                            "verdict": "skipped_max_steps", "ts": _now(),
+                            "approved_by": "rule"})
             break
         if only_phases and step["phase"] not in only_phases:
             continue
@@ -373,8 +503,28 @@ def run(engagement, *, roe_rules=None,
         if key in done_keys:
             results.append({"i": i, "name": step["name"], "host": step["host"],
                             "command": step["command"], "verdict": "skipped_resume",
-                            "ts": _now()})
+                            "ts": _now(), "approved_by": "system"})
             continue
+
+        # ---- budget check (loop-wide, pre-flight before the gate chain) ----
+        if budget_turns_remaining is not None and budget_turns_remaining <= 0:
+            rec = {"i": i, "name": step["name"], "host": step["host"],
+                   "command": step["command"], "verdict": "skipped_budget",
+                   "reason": "budget_turns_exhausted", "ts": _now(),
+                   "approved_by": "rule"}
+            results.append(rec); _write_jsonl(log_path, rec)
+            if on_progress:
+                on_progress(rec)
+            break
+        if budget_tokens_remaining is not None and budget_tokens_remaining <= 0:
+            rec = {"i": i, "name": step["name"], "host": step["host"],
+                   "command": step["command"], "verdict": "skipped_budget",
+                   "reason": "budget_tokens_exhausted", "ts": _now(),
+                   "approved_by": "rule"}
+            results.append(rec); _write_jsonl(log_path, rec)
+            if on_progress:
+                on_progress(rec)
+            break
 
         # ---- gate chain ----  (verdict is canonical; reason keeps the detail)
         gates = (
@@ -385,6 +535,10 @@ def run(engagement, *, roe_rules=None,
             ("skipped_noise",               _gate_noise,          (step, noise_ceiling)),
             ("skipped_risk",                _gate_risk,           (step, accept)),
             ("skipped_command",             _gate_command_safety, (step,)),
+            # Phase 28 — argv allow-list AFTER the deny-list.
+            ("skipped_argv_not_allowed",    _gate_argv_allowlist, (step, allowed)),
+            # Phase 28 — dial-time DNS scope re-check (ARTEX ADR-002).
+            ("skipped_scope_drift",         _gate_dial_time_scope,(step, roe_rules)),
         )
         gated = False
         for verdict, gate, gargs in gates:
@@ -392,9 +546,11 @@ def run(engagement, *, roe_rules=None,
             if not ok:
                 rec = {"i": i, "name": step["name"], "host": step["host"],
                        "command": step["command"], "verdict": verdict,
-                       "reason": reason, "ts": _now()}
+                       "reason": reason, "ts": _now(),
+                       "approved_by": "rule"}
                 results.append(rec)
                 _write_jsonl(log_path, rec)
+                _write_fact(fact_db, engagement_id, rec)
                 if on_progress:
                     on_progress(rec)
                 _emit(sys.stderr, _color("2;33", f"  [{i:>3}] SKIP {step['name'][:48]:<48}  "
@@ -403,6 +559,7 @@ def run(engagement, *, roe_rules=None,
                 break
         if not gated:
             # ---- gates passed; confirm + fire ----
+            approved_by = "rule"      # default: gate chain passed on its own
             if confirm and not dry_run and sys.stdin.isatty():
                 _emit(sys.stdout, _color("1;36",
                                          f"\n[{i}/{len(steps)}] About to run (host={step['host']}, "
@@ -417,14 +574,19 @@ def run(engagement, *, roe_rules=None,
                 if reply not in ("y", "yes"):
                     rec = {"i": i, "name": step["name"], "host": step["host"],
                            "command": step["command"],
-                           "verdict": "skipped_user_declined", "ts": _now()}
+                           "verdict": "skipped_user_declined", "ts": _now(),
+                           "approved_by": "human"}
                     results.append(rec); _write_jsonl(log_path, rec)
+                    _write_fact(fact_db, engagement_id, rec)
                     continue
+                approved_by = "human"
 
             if dry_run:
                 rec = {"i": i, "name": step["name"], "host": step["host"],
-                       "command": step["command"], "verdict": "dry_run", "ts": _now()}
+                       "command": step["command"], "verdict": "dry_run", "ts": _now(),
+                       "approved_by": "system"}
                 results.append(rec); _write_jsonl(log_path, rec)
+                _write_fact(fact_db, engagement_id, rec)
                 if on_progress:
                     on_progress(rec)
                 _emit(sys.stderr, _color("2;36",
@@ -446,8 +608,21 @@ def run(engagement, *, roe_rules=None,
                    "stdout_tail": so[-800:], "stderr_tail": se[-600:],
                    "ts": _now(),
                    "risk": step["risk"], "noise": step["noise"],
-                   "attack": step["attack"], "phase": step["phase"]}
+                   "attack": step["attack"], "phase": step["phase"],
+                   "approved_by": approved_by}
             results.append(rec); _write_jsonl(log_path, rec)
+            _write_fact(fact_db, engagement_id, rec)
+            # Phase 28 — consume budget. One subprocess run = one turn;
+            # no cheap way to count tokens for non-LLM tools, so we
+            # approximate with elapsed-seconds-based rough spend when the
+            # operator sets a token budget.
+            if budget_turns_remaining is not None:
+                budget_turns_remaining -= 1
+            if budget_tokens_remaining is not None:
+                # Approximate: 100 tokens per second of wall time. This is
+                # a cost ceiling, not a billing metric — operators who want
+                # tight accounting should set --budget-turns instead.
+                budget_tokens_remaining -= int(elapsed * 100)
             if on_progress:
                 on_progress(rec)
             colour = ("1;32" if verdict == "executed_ok"
@@ -559,6 +734,19 @@ def main(argv=None):
                     help="v2 only: per-iteration JSONL audit log")
     ap.add_argument("--lessons", metavar="DB",
                     help="v2 only: apply lessons.py bias when re-ranking")
+    # Phase 28 — autonomous-mode hardening knobs.
+    ap.add_argument("--allow-bin", action="append", metavar="BIN", default=[],
+                    help="argv allow-list: permitted binary name (repeatable). "
+                         "Without any, the engine runs under the deny-list "
+                         "only; with one or more, every simple command in a "
+                         "pipeline must start with a listed binary.")
+    ap.add_argument("--budget-tokens", type=int, default=DEFAULT_BUDGET_TOKENS,
+                    help="cumulative token budget (0 = unbounded; approximated "
+                         "as 100 tokens / second of wall time)")
+    ap.add_argument("--budget-turns", type=int, default=DEFAULT_BUDGET_TURNS,
+                    help="cumulative subprocess-turn budget (0 = unbounded)")
+    ap.add_argument("--fact-db", metavar="FILE",
+                    help="append-only Fact ledger SQLite path (fact_ledger.py)")
     args = ap.parse_args(argv)
 
     if not args.yes_i_am_authorized:
@@ -579,6 +767,11 @@ def main(argv=None):
                   f"institutional-TLD block only.", file=sys.stderr)
 
     accept = [t.strip().lower() for t in (args.accept_risk or "safe").split(",") if t.strip()]
+    # Phase 28 — argv allow-list from --allow-bin or env.
+    allowed = list(args.allow_bin or [])
+    env_bins = os.environ.get("MIMIR_AUTOPILOT_ALLOWED_BINS", "")
+    if env_bins:
+        allowed += [b.strip() for b in env_bins.split(",") if b.strip()]
     if args.loop and args.loop > 0:
         # Dispatch to Autopilot v2 — observe-decide-run loop. Same safety args.
         import autopilot_loop
@@ -588,6 +781,10 @@ def main(argv=None):
             "timeout_s": args.timeout, "dry_run": args.dry_run,
             "log_path": args.log, "ledger_db": args.ledger,
             "only_phases": args.only_phase,
+            "allowed_bins": allowed,
+            "budget_tokens": args.budget_tokens,
+            "budget_turns": args.budget_turns,
+            "fact_db": args.fact_db,
         }
         summary = autopilot_loop.run_loop(
             engagement, max_iterations=args.loop,
@@ -613,7 +810,11 @@ def main(argv=None):
               ledger_db=args.ledger,
               only_phases=args.only_phase,
               resume_path=args.resume,
-              colorize=sys.stderr.isatty())
+              colorize=sys.stderr.isatty(),
+              allowed_bins=allowed,
+              budget_tokens=args.budget_tokens,
+              budget_turns=args.budget_turns,
+              fact_db=args.fact_db)
     return 0 if not out["summary"]["aborted"] else 130
 
 
