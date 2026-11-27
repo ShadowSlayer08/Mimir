@@ -21,7 +21,7 @@ class ParseResult:
 
     __slots__ = ("new_hosts", "new_services", "new_findings",
                  "new_credentials", "new_urls", "new_subdomains",
-                 "notes", "source_tool")
+                 "hints", "notes", "source_tool")
 
     def __init__(self, source_tool=""):
         self.new_hosts = []
@@ -35,18 +35,27 @@ class ParseResult:
         self.new_urls = []        # [{"url": "https://host/path", "status": 200,
                                   #   "tech": "...", "title": "..."}]
         self.new_subdomains = []  # ["sub.example.com", ...]
+        # Phase 30: Hints — tactical one-liners workers write for each
+        # other. Not findings (no severity, no CVE) and not observations
+        # (no raw output). Example: "SMB null-session works on 10.0.0.5
+        # — later steps can try user='' password=''". The v2 loop writes
+        # each hint as a kind=hint Fact and the ranker reads them for
+        # next-action bias. Cairn calls these "Hints"; same shape here.
+        self.hints = []           # [str, ...]
         self.notes = []
         self.source_tool = source_tool
 
     def is_empty(self):
         return not (self.new_hosts or self.new_services or
                     self.new_findings or self.new_credentials or
-                    self.new_urls or self.new_subdomains or self.notes)
+                    self.new_urls or self.new_subdomains or
+                    self.hints or self.notes)
 
     def total_items(self):
         return (len(self.new_hosts) + len(self.new_services) +
                 len(self.new_findings) + len(self.new_credentials) +
-                len(self.new_urls) + len(self.new_subdomains))
+                len(self.new_urls) + len(self.new_subdomains) +
+                len(self.hints))
 
     def to_dict(self):
         return {
@@ -57,6 +66,7 @@ class ParseResult:
             "new_credentials": list(self.new_credentials),
             "new_urls": list(self.new_urls),
             "new_subdomains": list(self.new_subdomains),
+            "hints": list(self.hints),
             "notes": list(self.notes),
         }
 

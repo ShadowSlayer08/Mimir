@@ -47,6 +47,7 @@ import argparse
 import json
 import os
 import re
+import secrets
 import shlex
 import signal
 import subprocess
@@ -329,6 +330,49 @@ def _gate_dial_time_scope(step, roe_rules):
 # --------------------------------------------------------------------------- #
 # Executor
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# Phase 31 — nonce-tagged tool output (ARTEX untrusted-boundary pattern).
+# Every subprocess spawn gets a fresh nonce; the verdict record carries it.
+# A v3 LLM feedback loop that re-ingests tool output into a planner prompt
+# must verify the nonce markers are present, so an LLM can't fake tool
+# output in its own response. We ship the helpers now so the Fact ledger
+# audit trail carries the nonce from day 1 of the next phase.
+# --------------------------------------------------------------------------- #
+_NONCE_BEGIN = "<<MIMIR_TOOL_OUTPUT:{}>>"
+_NONCE_END   = "<<MIMIR_TOOL_OUTPUT_END:{}>>"
+
+
+def _new_nonce():
+    """Per-step fresh nonce (128-bit, hex). Safe to put in audit trail."""
+    return secrets.token_hex(16)
+
+
+def tag_stdout_for_llm(text, nonce):
+    """Wrap `text` with begin/end nonce markers for LLM context ingestion.
+    An LLM that generates fake tool output cannot know the nonce, so
+    downstream verification can catch spoofed output."""
+    if not nonce:
+        return text or ""
+    return (_NONCE_BEGIN.format(nonce) + "\n" + (text or "") +
+            "\n" + _NONCE_END.format(nonce))
+
+
+def verify_llm_output_is_tool_output(text, nonce):
+    """Return (ok, stripped_text). ok=True only when BOTH begin+end markers
+    with the correct nonce are present. Strips them before returning."""
+    if not nonce or not text:
+        return False, (text or "")
+    begin = _NONCE_BEGIN.format(nonce)
+    end   = _NONCE_END.format(nonce)
+    if begin not in text or end not in text:
+        return False, text
+    # Pull the content between the markers; be lenient about surrounding
+    # whitespace and about extra text after the end marker (chattier LLMs).
+    start_idx = text.index(begin) + len(begin)
+    end_idx   = text.index(end, start_idx)
+    return True, text[start_idx:end_idx].strip("\r\n")
+
+
 def _subprocess_run(cmd, timeout_s, cwd=None, env=None):
     """Spawn the shell command, capture output, enforce timeout. Returns
     (exit_code, stdout_tail, stderr_tail, elapsed_s). Never raises; on timeout
@@ -476,10 +520,13 @@ def run(engagement, *, roe_rules=None,
 
     started = 0
     aborted = False
+    # Phase 29 — cancel-cause attribution. aborted_by is set on exit.
+    aborted_by = None
 
     def _handle_sigint(signum, frame):
-        nonlocal aborted
+        nonlocal aborted, aborted_by
         aborted = True
+        aborted_by = "human_sigint"
         _emit(sys.stderr, _color("1;31",
                                  "[autopilot] SIGINT — aborting; current step still finishing",
                                  colorize))
@@ -513,8 +560,10 @@ def run(engagement, *, roe_rules=None,
                    "reason": "budget_turns_exhausted", "ts": _now(),
                    "approved_by": "rule"}
             results.append(rec); _write_jsonl(log_path, rec)
+            _write_fact(fact_db, engagement_id, rec)
             if on_progress:
                 on_progress(rec)
+            aborted = True; aborted_by = "budget_turns"
             break
         if budget_tokens_remaining is not None and budget_tokens_remaining <= 0:
             rec = {"i": i, "name": step["name"], "host": step["host"],
@@ -522,8 +571,10 @@ def run(engagement, *, roe_rules=None,
                    "reason": "budget_tokens_exhausted", "ts": _now(),
                    "approved_by": "rule"}
             results.append(rec); _write_jsonl(log_path, rec)
+            _write_fact(fact_db, engagement_id, rec)
             if on_progress:
                 on_progress(rec)
+            aborted = True; aborted_by = "budget_tokens"
             break
 
         # ---- gate chain ----  (verdict is canonical; reason keeps the detail)
@@ -598,6 +649,9 @@ def run(engagement, *, roe_rules=None,
             if pacing_s and step["noise"] >= 4 and started > 0:
                 time.sleep(min(pacing_s, 30))
 
+            # Phase 31 — per-step nonce. Audited on the verdict + Fact;
+            # reusable later when LLM re-ingests tool output.
+            nonce = _new_nonce()
             rc, so, se, elapsed = _subprocess_run(step["command"], timeout_s)
             verdict = ("executed_ok" if rc == 0
                        else "timeout" if rc == -9
@@ -609,7 +663,8 @@ def run(engagement, *, roe_rules=None,
                    "ts": _now(),
                    "risk": step["risk"], "noise": step["noise"],
                    "attack": step["attack"], "phase": step["phase"],
-                   "approved_by": approved_by}
+                   "approved_by": approved_by,
+                   "io_nonce": nonce}
             results.append(rec); _write_jsonl(log_path, rec)
             _write_fact(fact_db, engagement_id, rec)
             # Phase 28 — consume budget. One subprocess run = one turn;
@@ -639,7 +694,8 @@ def run(engagement, *, roe_rules=None,
     for r in results:
         counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
     summary = {"ts_end": _now(), "started": started, "verdicts": counts,
-               "aborted": aborted, "total_steps": len(steps)}
+               "aborted": aborted, "aborted_by": aborted_by,
+               "total_steps": len(steps)}
     _emit(sys.stderr, "")
     _emit(sys.stderr, _color("1;33",
                              f"[autopilot] done  started={started}  "

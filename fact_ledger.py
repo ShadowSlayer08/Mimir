@@ -258,6 +258,49 @@ def _cmd_state(args):
     return 0
 
 
+# --------------------------------------------------------------------------- #
+# Phase 30 — sidequestion ask / answer
+# --------------------------------------------------------------------------- #
+def _cmd_ask(args):
+    """Append a `sidequestion:pending` Fact. Autopilot v2 halts at the top
+    of its next iteration until someone answers this id."""
+    fid = record(db_path=args.db, engagement_id=args.engagement,
+                 kind="sidequestion:pending", source="operator",
+                 data={"question": args.question})
+    print(f"[mimir-facts] asked #{fid}  engagement={args.engagement}  "
+          f"question={args.question!r}", file=sys.stderr)
+    return 0
+
+
+def _cmd_answer(args):
+    """Append a `sidequestion:answered` Fact citing the pending question."""
+    orig = get(args.db, int(args.id))
+    if not orig:
+        print(f"[mimir-facts] no fact with id={args.id}",
+              file=sys.stderr); return 2
+    if orig["kind"] != "sidequestion:pending":
+        print(f"[mimir-facts] fact #{args.id} is not a pending "
+              f"sidequestion (kind={orig['kind']!r})", file=sys.stderr)
+        return 2
+    fid = record(db_path=args.db, engagement_id=orig["engagement_id"],
+                 kind="sidequestion:answered", source="operator",
+                 from_fact_ids=[int(args.id)],
+                 data={"answer": args.answer,
+                       "answers_id": int(args.id)})
+    print(f"[mimir-facts] answered #{args.id} with #{fid}",
+          file=sys.stderr)
+    return 0
+
+
+def _cmd_hints(args):
+    """Print every unretracted hint for this engagement."""
+    rows = list_facts(args.db, args.engagement, kind="hint",
+                      limit=args.limit)
+    for r in rows:
+        print(f"#{r['id']:>5} {r['ts'][:19]}  {r['data'].get('hint', '')}")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="mimir-facts",
@@ -297,6 +340,22 @@ def main(argv=None):
     p = sub.add_parser("state", help="summary snapshot (by-kind + reopened)")
     p.add_argument("engagement")
     p.set_defaults(fn=_cmd_state)
+
+    # Phase 30 — sidequestion ask/answer + hints view.
+    p = sub.add_parser("ask", help="pose a sidequestion (autopilot v2 will halt)")
+    p.add_argument("engagement")
+    p.add_argument("question")
+    p.set_defaults(fn=_cmd_ask)
+
+    p = sub.add_parser("answer", help="answer a pending sidequestion by id")
+    p.add_argument("id", type=int)
+    p.add_argument("answer")
+    p.set_defaults(fn=_cmd_answer)
+
+    p = sub.add_parser("hints", help="list tactical hints for an engagement")
+    p.add_argument("engagement")
+    p.add_argument("--limit", type=int, default=50)
+    p.set_defaults(fn=_cmd_hints)
 
     args = ap.parse_args(argv)
     if not args.db:

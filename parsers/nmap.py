@@ -104,4 +104,27 @@ def parse(stdout, stderr="", exit_code=0):
                 "version": "",
             })
 
+    # Phase 30 — tactical hints the v2 loop can bias its ranker with.
+    # Keep them short + actionable; the Fact ledger stores them verbatim.
+    for svc in r.new_services:
+        name = (svc.get("service") or "").lower()
+        host = svc.get("host", "")
+        port = svc.get("port")
+        if name in ("microsoft-ds", "netbios-ssn", "smb"):
+            r.hints.append(
+                f"SMB on {host}:{port} — try null-session enum "
+                f"(`enum4linux-ng -A {host}`) before credentialed checks.")
+        elif name == "ldap":
+            r.hints.append(
+                f"LDAP on {host}:{port} — anonymous bind check "
+                f"(`ldapsearch -x -H ldap://{host} -s base`); AD domain "
+                f"naming context often leaks forest info.")
+        elif name in ("mysql", "postgresql", "mssql"):
+            r.hints.append(
+                f"{name.upper()} on {host}:{port} — check for default "
+                f"creds and version-banner CVEs before any authed test.")
+        elif name == "rdp":
+            r.hints.append(
+                f"RDP on {host}:{port} — NLA fingerprint + CredSSP check; "
+                f"avoid blind brute-force (lockout risk).")
     return r

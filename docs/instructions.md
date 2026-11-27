@@ -204,6 +204,42 @@ Training recipe (operator-driven, when ready):
 Cloud models stay excluded (`MIMIR_LLM_ALLOW_CLOUD=1` escape hatch
 unchanged). Fine-tuning is local-only.
 
+## 9. Autonomous-mode continuity — linked graphs, hints, sidequestions (Phase 29–31)
+
+Autopilot v2 is no longer an opaque loop. Three cross-cutting layers thread
+causality + communication + trust through every iteration:
+
+* **Linked graphs (Phase 29).** Each parser hit becomes a `parsed_result`
+  Fact citing the step's verdict Fact via `io_nonce`. Every merged
+  finding, service, and URL carries `source_fact_id` so the engagement
+  JSON (the asset view) and the Fact ledger (the exploration view) are
+  joined. `mimir-facts replay` reads like a story — "we ran step X,
+  parsed Y, which produced finding Z."
+* **Cancel-cause attribution (Phase 29).** Every `aborted` summary
+  carries `aborted_by`: `human_sigint`, `budget_turns`,
+  `budget_tokens`, `timeout`, or `None` on clean exit.
+* **Re-rank dedup (Phase 29).** The copilot ranker is skipped on
+  iterations where `(hosts, findings, paths, urls, subdomains, hints)`
+  hasn't changed. One LLM call saved per converged iteration.
+* **Hints as Facts (Phase 30).** `ParseResult.hints` lets parsers write
+  short tactical observations ("SMB on 10.0.0.5:445 — try null-session
+  enum before credentialed checks"). The v2 loop merges them into
+  `engagement["hints"]` and writes one `kind=hint` Fact per hint.
+  Browse with `mimir-facts hints <engagement>`.
+* **Sidequestion (Phase 30).** `mimir-facts ask <engagement>
+  "<question>"` posts a `kind=sidequestion:pending` Fact. Autopilot v2
+  halts at the top of the next iteration until `mimir-facts answer
+  <id> "<text>"` lands a `kind=sidequestion:answered` Fact. Operators
+  can clarify credentials, confirm destructive steps, or pivot the
+  engagement mid-run without killing it.
+* **Nonce-tagged tool output (Phase 31).** Every subprocess spawn
+  carries a 128-bit hex nonce. `io_nonce` lands on every verdict and
+  Fact. `autopilot.tag_stdout_for_llm` / `verify_llm_output_is_tool_output`
+  are the helper pair that lets a future v3 LLM-feedback loop trust
+  that a block of "tool output" in its context actually came from a
+  real subprocess — the LLM can't know the nonce, so it can't fake
+  tool output in its own replies.
+
 ## 7. Autopilot v2 — observe-decide-run loop (Phase 21+22)
 `mimir-autopilot --loop N` (or `mimir-autopilot-loop`) wraps v1 in an outer
 loop: each iteration parses every executed step's stdout via `parsers/`,

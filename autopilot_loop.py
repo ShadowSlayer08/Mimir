@@ -330,14 +330,21 @@ def _restage_from_discoveries(engagement, new_services, mode="vapt",
 # --------------------------------------------------------------------------- #
 # Observation — per-step parse + merge.
 # --------------------------------------------------------------------------- #
-def _observe_results(engagement, results):
+def _observe_results(engagement, results, *, fact_db=None, engagement_id=None):
     """Walk the autopilot run results, parse each executed step's stdout/stderr
     via parsers.dispatch, merge every ParseResult back into the engagement.
     Returns the aggregate counts PLUS the raw new_services list so the caller
-    can re-dispatch modules against just-discovered ports."""
+    can re-dispatch modules against just-discovered ports.
+
+    Phase 29+30 extensions:
+      * `fact_db` / `engagement_id` — write a `parsed_result` Fact per
+        parser hit (source_fact_id for every merged item below).
+      * Hints emitted by parsers are persisted as `kind=hint` Facts and
+        attached to `engagement["hints"]` for the copilot ranker.
+    """
     agg = {"parsed_steps": 0, "new_hosts": [], "new_services": 0,
            "new_findings": 0, "new_credentials": 0,
-           "new_urls": 0, "new_subdomains": 0,
+           "new_urls": 0, "new_subdomains": 0, "new_hints": 0,
            "_raw_new_services": [], "_raw_new_urls": [],
            "_raw_new_subdomains": []}
     for r in results or []:
@@ -350,6 +357,10 @@ def _observe_results(engagement, results):
                               r.get("exit_code", 0))
         if pr.is_empty():
             continue
+        # Phase 29 — link graphs: this parse result gets its own Fact that
+        # cites the step's verdict Fact (if we can find it by io_nonce).
+        source_fact_id = _record_parsed_fact(
+            fact_db, engagement_id, r, pr)
         # Track which services are NEW to the engagement (merge returns the
         # added count, but we also want to re-dispatch them, so stash the
         # new rows before merging).
@@ -358,6 +369,14 @@ def _observe_results(engagement, results):
                      if (s.get("host"), s.get("port"),
                          (s.get("proto") or "tcp").lower()) not in existing]
         agg["_raw_new_services"].extend(truly_new)
+        # Phase 29 — tag every new row with source_fact_id (may be None
+        # when fact_db is unset; parsers get their lineage either way).
+        for svc in pr.new_services:
+            svc.setdefault("source_fact_id", source_fact_id)
+        for fnd in pr.new_findings:
+            fnd.setdefault("source_fact_id", source_fact_id)
+        for url in pr.new_urls:
+            url.setdefault("source_fact_id", source_fact_id)
         agg["new_services"] += _merge_services(engagement, pr.new_services)[1]
         agg["new_hosts"] += [h for h in pr.new_hosts
                              if h not in agg["new_hosts"]]
@@ -375,7 +394,141 @@ def _observe_results(engagement, results):
                           if s.lower() not in existing_subs]
         agg["_raw_new_subdomains"].extend(truly_new_subs)
         agg["new_subdomains"] += _merge_subdomains(engagement, pr.new_subdomains)
+        # Phase 30 — Hints on the engagement + as Facts.
+        added_hints = _merge_hints(engagement, pr.hints)
+        agg["new_hints"] += added_hints
+        _record_hint_facts(fact_db, engagement_id, pr.hints, source_fact_id)
     return agg
+
+
+def _record_parsed_fact(fact_db, engagement_id, step_record, parse_result):
+    """Phase 29 — append one `parsed_result` Fact per parser hit, citing
+    the step's verdict Fact (looked up by io_nonce). Returns the new
+    Fact's id, or None when fact_db is unset.
+    """
+    if not fact_db or not engagement_id:
+        return None
+    try:
+        import fact_ledger
+        step_nonce = step_record.get("io_nonce", "")
+        step_fact_id = _fact_for_nonce(fact_db, engagement_id, step_nonce)
+        fid = fact_ledger.record(
+            db_path=fact_db, engagement_id=engagement_id,
+            kind="parsed_result", source="autopilot-v2",
+            from_fact_ids=[step_fact_id] if step_fact_id else [],
+            data={"source_tool": parse_result.source_tool,
+                  "counts": {"hosts": len(parse_result.new_hosts),
+                             "services": len(parse_result.new_services),
+                             "findings": len(parse_result.new_findings),
+                             "urls": len(parse_result.new_urls),
+                             "subdomains": len(parse_result.new_subdomains),
+                             "hints": len(parse_result.hints),
+                             "creds": len(parse_result.new_credentials)},
+                  "step_nonce": step_nonce})
+        return fid
+    except Exception:                                              # pragma: no cover
+        return None
+
+
+def _fact_for_nonce(fact_db, engagement_id, nonce):
+    """Return the Fact id whose data.io_nonce matches `nonce`, or None."""
+    if not nonce or not fact_db:
+        return None
+    try:
+        import sqlite3, json as _json
+        con = sqlite3.connect(fact_db, isolation_level=None)
+        try:
+            # Narrow the search — most step Facts are the latest ones.
+            rows = con.execute(
+                "SELECT id, data FROM facts WHERE engagement_id=? "
+                "ORDER BY id DESC LIMIT 100", (engagement_id,)).fetchall()
+        finally:
+            con.close()
+        for fid, data_json in rows:
+            try:
+                if _json.loads(data_json or "{}").get("io_nonce") == nonce:
+                    return fid
+            except Exception:
+                continue
+    except Exception:                                              # pragma: no cover
+        pass
+    return None
+
+
+def _merge_hints(engagement, new_hints):
+    """Dedup-merge hint strings into engagement['hints']. Case-insensitive."""
+    bucket = engagement.setdefault("hints", [])
+    seen = {(h or "").strip().lower() for h in bucket if isinstance(h, str)}
+    added = 0
+    for h in new_hints or []:
+        s = (h or "").strip()
+        if not s:
+            continue
+        key = s.lower()
+        if key in seen:
+            continue
+        bucket.append(s); seen.add(key); added += 1
+    return added
+
+
+def _record_hint_facts(fact_db, engagement_id, hints, source_fact_id):
+    """Phase 30 — one `kind=hint` Fact per hint, citing the parsed Fact."""
+    if not (fact_db and engagement_id and hints):
+        return
+    try:
+        import fact_ledger
+        for h in hints:
+            fact_ledger.record(
+                db_path=fact_db, engagement_id=engagement_id,
+                kind="hint", source="autopilot-v2",
+                from_fact_ids=[source_fact_id] if source_fact_id else [],
+                data={"hint": h})
+    except Exception:                                              # pragma: no cover
+        pass
+
+
+# --------------------------------------------------------------------------- #
+# Phase 29 — situation key for rerank dedup
+# --------------------------------------------------------------------------- #
+def _situation_key(engagement):
+    """Tuple summarizing the engagement's structural counts. When it hasn't
+    changed since the prior iteration, there's nothing new to rank — we
+    can reuse the last recommendations and skip the LLM call."""
+    return (
+        len(engagement.get("hosts") or []),
+        len(engagement.get("findings") or []),
+        len(engagement.get("attack_paths") or []),
+        len(engagement.get("appsec_urls") or []),
+        len(engagement.get("appsec_subdomains") or []),
+        len(engagement.get("hints") or []),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Phase 30 — sidequestion read: find the newest unanswered question Fact
+# for this engagement. Answered when a later Fact (kind=sidequestion:answered)
+# cites the pending Fact's id.
+# --------------------------------------------------------------------------- #
+def _pending_sidequestion(fact_db, engagement_id):
+    if not fact_db or not engagement_id:
+        return None
+    try:
+        import fact_ledger
+        all_facts = list(fact_ledger.replay(fact_db, engagement_id))
+    except Exception:                                              # pragma: no cover
+        return None
+    answered_ids = set()
+    for f in all_facts:
+        if f["kind"] == "sidequestion:answered":
+            for src in (f.get("from_fact_ids") or []):
+                answered_ids.add(int(src))
+    pending = [f for f in all_facts
+               if f["kind"] == "sidequestion:pending"
+               and f["id"] not in answered_ids]
+    if not pending:
+        return None
+    # Oldest unanswered wins — we never want to drop a question.
+    return pending[0]
 
 
 def _service_keys(engagement):
@@ -463,8 +616,21 @@ def run_loop(engagement, *, max_iterations=DEFAULT_MAX_ITERATIONS,
     """
     autopilot_kwargs = dict(autopilot_kwargs or {})
     agg = {"iterations": 0, "merged_hosts": 0, "merged_services": 0,
-           "merged_findings": 0, "autopilot_runs": [], "per_iter": []}
+           "merged_findings": 0, "merged_hints": 0,
+           "autopilot_runs": [], "per_iter": []}
     dry_streak = 0
+    # Phase 29 — rerank dedup by situation key. First call always runs;
+    # subsequent iterations skip the LLM ranker call when the situation
+    # hasn't changed.
+    last_situation = None
+    cached_recs = 0
+    # Phase 30 — pull fact_db + engagement_id out of autopilot_kwargs so
+    # _observe_results and the sidequestion pause can see them.
+    fact_db = autopilot_kwargs.get("fact_db")
+    eid = autopilot_kwargs.get("engagement_id") or engagement.get("meta", {}).get("engagement_id") or "default"
+    # Make sure autopilot.run gets a usable engagement_id.
+    if fact_db and not autopilot_kwargs.get("engagement_id"):
+        autopilot_kwargs["engagement_id"] = eid
 
     for i in range(1, max_iterations + 1):
         iter_start = _now()
@@ -474,14 +640,29 @@ def run_loop(engagement, *, max_iterations=DEFAULT_MAX_ITERATIONS,
         else:
             print(f"\n[autopilot-v2] iteration {i}/{max_iterations}", file=sys.stderr, flush=True)
 
+        # Phase 30 — sidequestion pause: if there's a pending question
+        # with no answer, we stop the loop and ask the operator to answer
+        # it (via `mimir-facts answer`) before re-running.
+        pending_q = _pending_sidequestion(fact_db, eid)
+        if pending_q:
+            print(f"[autopilot-v2] pending sidequestion #{pending_q['id']}: "
+                  f"{pending_q['data'].get('question', '')!r} — "
+                  f"run `mimir-facts answer {pending_q['id']} '...'` first",
+                  file=sys.stderr)
+            agg["halted_on"] = "sidequestion"
+            agg["sidequestion_id"] = pending_q["id"]
+            break
+
         v1 = autopilot.run(engagement, colorize=colorize, **autopilot_kwargs)
         agg["autopilot_runs"].append(v1["summary"])
         agg["iterations"] = i
 
-        parsed = _observe_results(engagement, v1["results"])
+        parsed = _observe_results(engagement, v1["results"],
+                                  fact_db=fact_db, engagement_id=eid)
         agg["merged_hosts"] += len(parsed["new_hosts"])
         agg["merged_services"] += parsed["new_services"]
         agg["merged_findings"] += parsed["new_findings"]
+        agg["merged_hints"] += parsed.get("new_hints", 0)
 
         # Phase 25+26: re-dispatch modules against the new discoveries so
         # the plan GROWS mid-loop instead of only being re-ranked. New
@@ -497,7 +678,17 @@ def run_loop(engagement, *, max_iterations=DEFAULT_MAX_ITERATIONS,
             new_urls=parsed["_raw_new_urls"],
             new_subdomains=parsed["_raw_new_subdomains"])
 
-        reranked = _rerank(engagement, lessons_db=lessons_db)
+        # Phase 29 — rerank dedup by situation key. Skip the LLM call
+        # when nothing structural changed since the prior iteration.
+        situation = _situation_key(engagement)
+        if situation == last_situation:
+            reranked = cached_recs
+            rerank_skipped = True
+        else:
+            reranked = _rerank(engagement, lessons_db=lessons_db)
+            cached_recs = reranked
+            last_situation = situation
+            rerank_skipped = False
 
         iter_rec = {
             "iteration": i, "ts_start": iter_start, "ts_end": _now(),
@@ -510,10 +701,13 @@ def run_loop(engagement, *, max_iterations=DEFAULT_MAX_ITERATIONS,
             "new_credentials": parsed["new_credentials"],
             "new_urls": parsed["new_urls"],
             "new_subdomains": parsed["new_subdomains"],
+            "new_hints": parsed.get("new_hints", 0),
             "redispatched_steps": new_steps,
             "redispatched_modules": modules_called,
             "reranked_actions": reranked,
+            "rerank_skipped": rerank_skipped,
             "aborted": bool(v1["summary"].get("aborted")),
+            "aborted_by": v1["summary"].get("aborted_by"),
         }
         agg["per_iter"].append(iter_rec)
         _append_jsonl(loop_log_path, iter_rec)

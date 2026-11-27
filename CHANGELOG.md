@@ -10,6 +10,50 @@ and the project tracks [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Phase 29 + 30 + 31 bundled — graphs link up, planner talks back,
+  trust the inputs.** Three phases shipped together, continuing to
+  borrow from ARTEX + Cairn.
+  * **(29) Link exploration ↔ asset graph via source_fact_id.**
+    `autopilot_loop._observe_results` now writes one `parsed_result`
+    Fact per parser hit (citing the step's verdict Fact via
+    `io_nonce` lookup), and every merged finding / service / URL
+    carries `source_fact_id` pointing back to that Fact. Full causal
+    chain: step -> parsed_result -> finding.
+  * **(29) Cancel-cause attribution.** `summary["aborted_by"]` is set
+    on every exit path: `human_sigint`, `budget_turns`,
+    `budget_tokens` (new: budget exhaustion now marks aborted=True +
+    reason). `None` on clean completion.
+  * **(29) Re-rank dedup by situation key.** `_situation_key` is a
+    tuple of (hosts, findings, paths, urls, subdomains, hints)
+    counts. When unchanged between iterations, `_rerank` reuses the
+    prior count instead of calling `copilot.recommend_from_engagement`.
+    `iter_rec["rerank_skipped"]` records the fact. Measured saving:
+    1 LLM call per converged iteration.
+  * **(30) Hints as a first-class Fact kind** (from Cairn). Parsers
+    gain a `hints: list[str]` field. `parsers.nmap` emits tactical
+    hints for SMB (null-session), LDAP (anon-bind), MySQL/Postgres/
+    MSSQL (default-cred check), RDP (NLA + CredSSP, avoid brute).
+    `autopilot_loop._merge_hints` dedup-merges into
+    `engagement["hints"]`; `_record_hint_facts` writes each as a
+    `kind=hint` Fact citing the parent `parsed_result` Fact.
+    Browse: `mimir-facts hints <engagement>`.
+  * **(30) Sidequestion ask/answer** (from ARTEX `sidequestion`).
+    Mid-run operator-in-the-loop questions. `mimir-facts ask
+    <engagement> "<question>"` appends `kind=sidequestion:pending`;
+    autopilot v2 halts at the top of the next iteration until the
+    operator runs `mimir-facts answer <id> "<answer>"` which appends
+    `kind=sidequestion:answered` citing the pending Fact.
+    `out["halted_on"] = "sidequestion"` on the loop summary.
+  * **(31) Nonce-tagged tool output** (from ARTEX
+    `agent/untrusted_boundary.go`, ADR-001). Every subprocess spawn
+    gets a fresh 128-bit hex nonce. `rec["io_nonce"]` lands on every
+    verdict and every Fact. `autopilot.tag_stdout_for_llm(text,
+    nonce)` wraps text with `<<MIMIR_TOOL_OUTPUT:nonce>>...END`
+    markers; `autopilot.verify_llm_output_is_tool_output(text, nonce)`
+    checks both markers are present. Defends the v3 LLM feedback
+    loop against spoofed tool-output injection — the LLM can't know
+    the nonce, so it can't fake tool output in its own responses.
+  * 19 new tests in `tests/test_phase29_30_31.py`.
 - **Phase 28 — autonomous-first constitution + six borrowed patterns.**
   Learned from ARTEX (go-based LLM-driven pentest platform) and Cairn
   (state-space search engine, 54/54 problems on a pentest hackathon).
